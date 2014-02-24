@@ -160,7 +160,8 @@ def array_argmax(arr):
     "Returns the coordinates of the maximum element in the given array."
     return unravel_index(arr.argmax(),arr.shape)
 
-
+def array_argmin(arr):
+    return unravel_index(arr.argmin(),arr.shape)
 
 # CB: Is this of general interest? Used in gcal.ty.
 class DivideWithConstant(param.Parameterized):

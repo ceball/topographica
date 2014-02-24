@@ -97,7 +97,7 @@ class GeneratorSheet(Sheet):
         else:
             self.warning('There is no previous input generator to restore.')
 
-    def generate(self):
+    def generate(self,applyofs=True):
         """
         Generate the output and send it out the Activity port.
         """
@@ -108,7 +108,7 @@ class GeneratorSheet(Sheet):
         # guaranteed?
         self.activity[:] = self.input_generator()
 
-        if self.apply_output_fns:
+        if applyofs and self.apply_output_fns:
             for of in self.output_fns:
                 of(self.activity)
         self.send_output(src_port='Activity',data=self.activity)

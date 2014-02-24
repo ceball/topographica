@@ -8,11 +8,13 @@ $Id$
 """
 __version__='$Revision$'
 
-
 import copy
 
 from math import pi
-from colorsys import hsv_to_rgb
+#from colorsys import hsv_to_rgb
+
+from topo.misc.commandline import global_params as GP
+import __main__
 
 import numpy
 from numpy import zeros, empty, object_, size, vectorize, fromfunction
@@ -36,6 +38,7 @@ from topo.pattern.basic import SineGrating, Gaussian, RawRectangle, Disk
 from topo.plotting.plotgroup import plotgroups
 from topo.sheet import GeneratorSheet
 
+import colorhacks.global_stuff
 
 # CB: having a class called DistributionMatrix with an attribute
 # distribution_matrix to hold the distribution matrix seems silly.
@@ -203,7 +206,7 @@ class FeatureResponses(PatternDrivenAnalysis):
             self._featureresponses[sheet] = {}
             self._activities[sheet]=zeros(sheet.shape)
             for f in features:
-                self._featureresponses[sheet][f.name]=DistributionMatrix(sheet.shape,axis_range=f.range,cyclic=f.cyclic)
+                self._featureresponses[sheet][f.name]=DistributionMatrix(sheet.shape,axis_range=f.range,cyclic=f.cyclic,keep_peak=f.keep_peak)
             FeatureResponses._fullmatrix[sheet] = FullMatrix(sheet.shape,features)
 
     def sheets_to_measure(self):
@@ -262,7 +265,7 @@ class FeatureResponses(PatternDrivenAnalysis):
         complete_settings = permuted_settings + \
             [(f.name,f.compute_fn(permuted_settings)) for f in self.features_to_compute]
 
-
+ 
         for i in xrange(0,self.repetitions):
             topo.sim.state_push()
 
@@ -275,11 +278,12 @@ class FeatureResponses(PatternDrivenAnalysis):
             #self.message("Presenting pattern %s" % valstring)
             self.pattern_presenter(dict(permuted_settings),self.param_dict)
             for f in self.post_presentation_hooks: f()
-    
+
             if self.refresh_act_wins:topo.guimain.refresh_activity_windows()
             for sheet in self.sheets_to_measure():
                 self._activities[sheet]+=sheet.activity
             topo.sim.state_pop()
+
 
         for sheet in self.sheets_to_measure():
             self._activities[sheet]=self._activities[sheet] / self.repetitions
@@ -292,6 +296,7 @@ class FeatureResponses(PatternDrivenAnalysis):
             for feature,value in current_values:
                 self._featureresponses[sheet][feature].update(self._activities[sheet], value)
             FeatureResponses._fullmatrix[sheet].update(self._activities[sheet],current_values)
+
 
 
 
@@ -370,7 +375,7 @@ class ReverseCorrelation(FeatureResponses):
         #self.message("Presenting pattern %s" % valstring)
         self.pattern_presenter(dict(permuted_settings),self.param_dict)
         for f in self.post_presentation_hooks: f()
-    
+        
         if self.refresh_act_wins:topo.guimain.refresh_activity_windows()
 
         self._update(complete_settings)
@@ -385,6 +390,8 @@ class ReverseCorrelation(FeatureResponses):
                 for jj in range(cols):
                     self._featureresponses[sheet][ii,jj]+=sheet.activity[ii,jj]*self.input_sheet.activity
                     
+
+
 
 class FeatureMaps(FeatureResponses):
     """
@@ -442,8 +449,8 @@ class FeatureMaps(FeatureResponses):
         False, and the number of test patterns will usually need
         to be increased instead.
         """
-        self.measure_responses(pattern_presenter,param_dict,self.features,display)    
-        
+        self.measure_responses(pattern_presenter,param_dict,self.features,display)
+                    
         for sheet in self.sheets_to_measure():
             bounding_box = sheet.bounds
             
@@ -483,13 +490,20 @@ class FeatureMaps(FeatureResponses):
                     
                 
                 sheet.sheet_views[self.sheet_views_prefix+feature.capitalize()+'Preference']=preference_map
+
+
+                selectivity_multiplier = self.selectivity_multiplier*self._featureresponses[sheet][feature].selectivity()
                 
-                selectivity_map = SheetView((self.selectivity_multiplier*
-                                             self._featureresponses[sheet][feature].selectivity(),
-                                             bounding_box), sheet.name , sheet.precedence, topo.sim.time(),sheet.row_precedence)
+                if 'hue' in feature.lower():
+                    if hasattr(GP,'hue_map_selectivity_multiplier') and GP.hue_map_selectivity_multiplier:
+                        selectivity_multiplier*=GP.hue_map_selectivity_multiplier
+
+                selectivity_map = SheetView(
+                    (selectivity_multiplier,bounding_box),
+                    sheet.name , sheet.precedence, topo.sim.time(),sheet.row_precedence)
+                
                 sheet.sheet_views[self.sheet_views_prefix+feature.capitalize()+'Selectivity']=selectivity_map
 
-                
 class FeatureCurves(FeatureResponses):
     """
     Measures and collects the responses to a set of features, for calculating tuning and similar curves.    
@@ -524,7 +538,8 @@ class FeatureCurves(FeatureResponses):
         sheet.curve_dict[x_axis]={}
 
     def sheets_to_measure(self):
-        return topo.sim.objects(CFSheet).values()
+        from topo.base.projection import ProjectionSheet
+        return topo.sim.objects(ProjectionSheet).values()
 
     def collect_feature_responses(self,features,pattern_presenter,param_dict,curve_label,display):
         self.initialize_featureresponses(features)
@@ -643,6 +658,7 @@ class PatternPresenter(param.Parameterized):
 
         
     def __call__(self,features_values,param_dict):
+
         for param,value in param_dict.iteritems():
             # CEBALERT: why not setattr(self.gen,param,value)
             #if ('_'+param+'_param_value') not in self.gen.__dict__:
@@ -678,7 +694,7 @@ class PatternPresenter(param.Parameterized):
         ### interaction between or differences between patterns.
         
         if 'direction' in features_values:
-            import __main__
+            #import __main__
             if '_new_motion_model' in __main__.__dict__ and __main__.__dict__['_new_motion_model']:
             #### new motion model ####
                 from topo.pattern import Translator
@@ -705,39 +721,32 @@ class PatternPresenter(param.Parameterized):
                     inputs[name] = Sweeper(generator=inputs[name],step=step,speed=speed)
                     setattr(inputs[name],'orientation',orientation)
             ##########################
+
+        hue_to_rgb = colorhacks.global_stuff.cconv.analysis2receptors
         
-        if features_values.has_key('hue'):
+        if features_values.has_key('hue'):            
 
-            # could be three retinas (R, G, and B) or a single RGB
-            # retina for the color dimension; if every retina has
-            # 'Red' or 'Green' or 'Blue' in its name, then three
-            # retinas for color are assumed
-
-            rgb_retina = False 
-            for name in input_sheet_names:
-                if not ('Red' in name or 'Green' in name or 'Blue' in name):
-                    rgb_retina=True
-
-            if not rgb_retina:
+            if __main__.__dict__.get('hue_pref_with_fullfield',False):
                 for name in inputs.keys():
-                    r,g,b=hsv_to_rgb(features_values['hue'],1.0,1.0)
-                    if (name.count('Red')):
-                        inputs[name].scale=r
-                    elif (name.count('Green')):
-                        inputs[name].scale=g
-                    elif (name.count('Blue')):
-                        inputs[name].scale=b
-                    else: 
-                        if not hasattr(self,'hue_warned'):
-                            self.warning('Unable to measure hue preference, because hue is defined only when there are different input sheets with names with Red, Green or Blue substrings.')
-                            self.hue_warned=True
+                    sc = inputs[name].scale
+                    off = inputs[name].offset
+                    inputs[name] = pattern.Constant(scale=sc,offset=off)
+
+            if hasattr(GP,'sat_for_analysis') and GP.sat_for_analysis:
+                sat_for_analysis = GP.sat_for_analysis
             else:
-                from contrib import rgbimages
-                r,g,b=hsv_to_rgb(features_values['hue'],1.0,1.0)
-                for name in inputs.keys():
-                    inputs[name] = rgbimages.ExtendToRGB(generator=inputs[name],
-                                                         relative_channel_strengths=[r,g,b])
-                # CEBALERT: should warn as above if not a color network
+                sat_for_analysis = 1.0
+
+            r,g,b = hue_to_rgb((features_values['hue'],sat_for_analysis,1.0))
+
+        else:
+            r,g,b = hue_to_rgb((0.0,0.0,1.0))
+
+        for name in inputs.keys():
+            inputs[name] = topo.sim['Retina'].hacky_e2rgb_class(
+                generator=inputs[name],
+                channel_factors = [r,g,b])
+
         
         #JL: This is only used for retinotopy measurement in jude laws contrib/jsldefs.py
         #Also needs cleaned up
@@ -886,9 +895,9 @@ class PatternPresenter(param.Parameterized):
         # blank patterns for unused generator sheets
         for sheet_name in set(all_input_sheet_names).difference(set(input_sheet_names)):
             inputs[sheet_name]=pattern.Constant(scale=0)
-                
+
         pattern_present(inputs, self.duration, plastic=False,
-                     apply_output_fns=self.apply_output_fns)
+                        apply_output_fns=self.apply_output_fns)
 
 
 class Subplotting(param.Parameterized):
@@ -1260,7 +1269,6 @@ class FeatureCurveCommand(SinusoidalMeasureResponseCommand):
         specified val_format to print a label for each value of a
         curve_parameter.
         """
-
         x=FeatureCurves(self._feature_list(p),sheet=sheet,x_axis=self.x_axis)
         for curve in p.curve_parameters:
             static_params = dict([(s,p[s]) for s in p.static_parameters])

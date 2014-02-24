@@ -175,6 +175,41 @@ class vectorplot(PylabPlotCommand):
         self._generate_figure(p)
 
 
+class polarplot(PylabPlotCommand):
+    """
+    pylab.polar plot with *supplied* theta values used for divisions
+    on the theta axis (and optionally labeled with names from the
+    'labels' list)
+    
+    e.g.
+    bins = topo.sim['A'].data_analysis_fn.bins
+    vals = topo.sim['A'].analysis_result
+    polarplot(2*pi*(bins+0.05),vals,labels=bins)
+    """
+    # JABALERT: All but the first two arguments should probably be Parameters
+    def __call__(self,theta_values,r_values,labels=None,fmt='%d',frac=1.1,**params):
+        p = ParamOverrides(self,params)
+
+        #hack to join points
+        theta_values = list(theta_values)
+        r_values = list(r_values)
+        theta_values.append(theta_values[0])
+        r_values.append(r_values[0])
+
+
+        theta_values = numpy.asarray(theta_values)
+        r_values = numpy.asarray(r_values)
+                                     
+        pylab.polar(theta_values,r_values,'-+')
+
+        if labels is not None:
+            # get grid lines at the theta_values specified with labels (rather than angles)
+            # CB: why is 1st arg of pylab.thetagrids in degrees?
+            # CEBALERT: fmt missing - bug fixed in recent matplotlib svn
+            pylab.thetagrids((360/(2*pi))*(2*pi*numpy.array(labels)), labels=labels, frac=frac)
+
+        self._generate_figure(p)
+
 
 class matrixplot(PylabPlotCommand):
     """
@@ -190,12 +225,14 @@ class matrixplot(PylabPlotCommand):
         Matplotlib command to generate the plot, e.g. pylab.gray or pylab.hsv.""")
     
     # JABALERT: All but the first two should probably be Parameters
-    def __call__(self,mat,aspect=None,colorbar=True,**params):
+    def __call__(self,mat,aspect=None,colorbar=False,vmin=None,vmax=None,**params):
         p=ParamOverrides(self,params)
         
         p.plot_type()
         pylab.figure(figsize=(5,5))
-        pylab.imshow(mat,interpolation='nearest',aspect=aspect)
+        pylab.imshow(mat,interpolation='nearest',aspect=aspect,vmin=vmin,vmax=vmax)
+        pylab.xticks([])
+        pylab.yticks([])
         if colorbar and (mat.min()!= mat.max()): pylab.colorbar()
         self._generate_figure(p)
 
@@ -324,6 +361,8 @@ class histogramplot(PylabPlotCommand):
         self._generate_figure(p)
 
 
+        
+    
 
 class gradientplot(matrixplot):
     """
@@ -598,9 +637,10 @@ class tuning_curve(PylabPlotCommand):
             self.first_curve=True
             for curve_label in sorted(sheet.curve_dict[p.x_axis].keys()):
                 x_values,y_values,ticks=self._curve_values(i_value,j_value,sheet.curve_dict[p.x_axis][curve_label])
-                
+
                 x_tick_values,ticks = self._reduce_ticks(ticks)
                 labels = [self._format_x_tick_label(x) for x in ticks]
+
                 pylab.xticks(x_tick_values, labels,fontsize='large')
                 pylab.yticks(fontsize='large')
                 p.plot_type(x_values, y_values, label=curve_label,lw=3.0)
@@ -958,6 +998,7 @@ create_plotgroup(template_plot_type="curve",name='Orientation Tuning Fullfield',
             are available immediately for any unit.""",
         pre_plot_hooks=[measure_or_tuning_fullfield.instance()],
         plot_hooks=[cyclic_tuning_curve.instance(x_axis="orientation")])
+
 
 
 

@@ -1,0 +1,721 @@
+"""
+
+$Id: lissom3.ty 900 2012-11-19 15:46:43Z s0454615 $
+"""
+__version__='$Revision: 900 $'
+
+# CEBALERT: the network constructing code, umm, follows the
+# history of my experimentation. It should be re-written.
+
+import glob
+from math import pi
+
+import numpy
+
+import param
+
+from topo import learningfn,numbergen,transferfn,pattern,projection,responsefn,sheet
+from topo.analysis.featureresponses import MeasureResponseCommand
+from topo.command.analysis import measure_sine_pref
+from topo.command.pylabplot import overlaid_plots
+from topo.plotting.plotgroup import create_plotgroup
+import topo
+import topo.command.basic
+import topo.learningfn.optimized
+import topo.learningfn.projfn
+import topo.pattern.image
+import topo.pattern.random
+import topo.responsefn.optimized
+import topo.sheet.lissom
+import topo.sheet.optimized
+import topo.transferfn.misc
+import topo.transferfn.optimized
+from topo.misc.commandline import global_params as p
+
+import colorhacks.totopo
+import colorhacks.global_stuff
+
+
+def resolve_folder(*args,**kw):
+    kw.update({'path_to_file':False})
+    return param.resolve_path(*args,**kw)
+
+p.add(
+
+    retina_density=param.Number(default=24.0,bounds=(0,None),
+        inclusive_bounds=(False,True),doc="""
+        The nominal_density to use for the retina."""),
+
+    lgn_density=param.Number(default=48.0,bounds=(0,None),
+        inclusive_bounds=(False,True),doc="""
+        The nominal_density to use for the LGN."""),
+
+    cortex_density=param.Number(default=48.0,bounds=(0,None),
+        inclusive_bounds=(False,True),doc="""
+        The nominal_density to use for V1."""),
+
+    A_aff_strength=param.Number(default=1.5,bounds=(0.0,None),doc="""
+        Overall strength of the afferent projection to V1."""),
+
+    A_exc_strength=param.Number(default=1.7,bounds=(0.0,None),doc="""
+        Overall strength of the lateral excitatory projection to V1."""),
+
+    A_inh_strength=param.Number(default=1.4,bounds=(0.0,None),doc="""
+        Overall strength of the lateral inhibitory projection to V1."""),
+
+    A_aff_lr=param.Number(default=0.1,bounds=(0.0,None),doc="""
+        Learning rate for the afferent projection to V1."""),
+
+    A_exc_lr=param.Number(default=0.0,bounds=(0.0,None),doc="""
+        Learning rate for the lateral excitatory projection to V1."""),
+
+    A_inh_lr=param.Number(default=0.3,bounds=(0.0,None),doc="""
+        Learning rate for the lateral inhibitory projection to V1."""),
+
+    tsettle = param.Number(default=16),
+
+    hack_use_chrislib = param.Boolean(default=False)
+)
+
+
+##############################
+# CB: 
+if p.hack_use_chrislib:
+    import chrislib.rgbimages
+    import chrislib.more_global_stuff
+    import chrislib.recording
+##############################
+
+
+topo.sim.name = "lissom4"
+
+numpy.random.seed(p.numpy_random_seed)
+
+projection.CFProjection.cf_shape=pattern.Disk(smoothing=0.0)
+projection.CFProjection.weights_generator=pattern.Constant()
+projection.CFProjection.response_fn=responsefn.optimized.CFPRF_DotProduct_opt()
+projection.CFProjection.learning_fn=learningfn.optimized.CFPLF_Hebbian_opt()
+projection.CFProjection.weights_output_fns=[transferfn.optimized.CFPOF_DivisiveNormalizeL1_opt()]
+projection.SharedWeightCFProjection.response_fn=responsefn.optimized.CFPRF_DotProduct_opt()
+
+natural_image_sets = ['Barca']
+
+if p.dataset in natural_image_sets:
+
+    input_type = colorhacks.totopo.ChannsFromImage
+    
+    if hasattr(p,'hack_cache_open') and p.hack_cache_open:
+        chrislib.more_global_stuff.override_npyopen(input_type)
+        
+    ids=4.0
+
+else:
+    raise
+
+
+#####
+# CEBALERT
+LC = p.LC # don't delete - hack in projection.py reads it
+LC_L = 0.5*(1+p.LC)
+LC_C = 0.5*(1-p.LC)
+#####
+
+
+dataset_subsets = {
+    "Barca" : {
+        "natural": ("natural01",),#"natural02","natural03","natural04"),
+        "urban"  : ("urban",)
+        }
+    }
+
+dataset_colorspaces = {
+    "Barca" : {
+        "XYZ" : "CIE1931_XYZ_Munsell",
+        "SP_LMS" : "SP_LMS_Munsell"
+        }
+    }
+
+
+relative_channel_strengths = [1.,1.,1.]
+### YMBK ###
+if hasattr(p,'red_channel_boost3') and p.red_channel_boost3 is not None:
+    chrislib.more_global_stuff.do_red_channel_boost3(relative_channel_strengths)
+############
+
+if p.correlation is not None:
+    chrislib.more_global_stuff.set_correlation(p.correlate_what, p.correlation)
+
+center_polarities=['On','Off']
+rg_cone_types=['']
+cone_types=['']
+opponent_types=['']
+basic_opponent_types=['']
+
+v1aff_radius=0.27083
+lgnaff_radius=0.375
+
+rg_cone_types=['Red','Green']
+cone_types=['Red','Green']
+
+if p.blue:
+    cone_types.append('Blue')
+
+if p.LGN:
+
+    if p.BYOPP is False and p.rgcsym==0:
+        if p.redgreen:
+            opponent_types=['Red-Green ','Green-Red ']
+        if p.blue:
+            assert p.redgreen
+            opponent_types.append('Blue-RedGreen ')
+    elif p.rgcsym==1:
+        assert p.blue
+        assert p.redgreen
+        opponent_types=['Red-Green ','Red-Blue ','Green-Blue ','Blue-Green ','Blue-Red ','Green-Red ']
+    else:
+        assert p.blue
+        assert p.redgreen
+        opponent_types=['Red-Green ','Green-Red ','Blue-RedGreen ']
+        if p.BYOPPhack:
+            opponent_types.append("RedGreen-Blue ")
+    if p.lumpath:
+        opponent_types.append('Luminosity ')
+
+    if p.rgcsym==0:
+        if p.redgreen:
+            basic_opponent_types=['Red-Green ','Green-Red ']
+    else:
+        assert p.redgreen
+        basic_opponent_types=['Red-Green ','Red-Blue ','Green-Blue ','Blue-Green ','Blue-Red ','Green-Red ']
+
+
+DAATASETS = resolve_folder('DATASETS')
+
+if p.dataset in natural_image_sets:
+
+    assert p.dataset=="Barca" # CEBALERT: haven't re-done the others yet
+    
+    files = []
+
+    for subset in dataset_subsets[p.dataset][p.dataset_subset]:
+        ## these are camera rgb->xyz using munsell reflectances;
+        ## apparently, NE reflectances are available in there
+        ## somewhere too so could do that mapping.
+        loc = DAATASETS+"/cvc/"+subset+"/"+dataset_colorspaces[p.dataset][p.dataset_colorspace]+"/" 
+        files+=glob.glob(loc+"*.%s"%p.dataset_format)
+
+    image_filenames = sorted(files)
+
+    inputs = []
+    firstone = True
+    for f,i in zip(image_filenames,range(len(image_filenames))):
+
+        inp=input_type(
+            sat = 0.3,
+            filename=f, size=10.0, cache_image=False,
+            x=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+6*i),
+            y=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+2+6*i),
+            orientation=numbergen.UniformRandom(lbound=-pi,ubound=pi,seed=p.input_seed+3+6*i),
+            scale=1.0,
+            random_generator=numbergen.UniformRandom(lbound=-p.hjitter/2.0,
+                                                     ubound=p.hjitter/2.0,
+                                                     seed=p.input_seed+5+6*i))
+
+        # CEBALERT
+        if firstone:
+            inp.random_generator.random_generator.seed(p.rh_seed)
+            firstone=False
+        else:
+            inp.random_generator.random_generator = inputs[0].random_generator.random_generator
+    
+        inputs.append(inp)
+
+    input_composite=colorhacks.totopo.HackedSelector(generators=inputs)
+
+    input_composite._index_param_value.random_generator.seed(p.porderseed)
+
+    input_color = colorhacks.totopo.ColorImageSheet.hacky_e2rgb_class(
+        generator=input_composite,
+        channel_factors=relative_channel_strengths,
+        correlate = [p.correlate_what[0],p.correlate_what[1],p.correlation] if p.correlation else None)
+
+else:
+    raise
+
+
+topo.sim['Retina'] = colorhacks.totopo.ColorImageSheet(
+    nominal_density=p.retina_density,
+    input_generator=input_color,
+    period=1.0, phase=0.05,
+    nominal_bounds=sheet.BoundingBox(radius=0.5+v1aff_radius+lgnaff_radius),
+    constant_mean_total_retina_output=p.constant_mean_total_retina_output)
+
+
+if not p.redgreen:
+    opponent_types.remove("")
+    basic_opponent_types.remove("")
+    
+
+def make_OFs_for_an_rgc():
+    if p.rgc_upper_limit is not None:
+        return [transferfn.PiecewiseLinear(lower_bound=0.0,upper_bound=p.rgc_upper_limit)]
+    else:
+        return []
+
+
+if p.LGN:
+    for l in center_polarities:
+        for opponent in opponent_types:
+            NAMEUH=opponent+'LGN'+l
+
+            if opponent=="RedGreen-Blue ":
+                if p.BYOPPhack:
+
+                    density = p.lgn_density
+                    
+                    topo.sim[NAMEUH]=sheet.CFSheet(
+                        nominal_density=density,
+                        nominal_bounds=sheet.BoundingBox(radius=0.5+v1aff_radius),
+                        output_fns=make_OFs_for_an_rgc(),
+                        measure_maps=False)
+            else:
+
+#            if 'Blue' in NAMEUH:
+#                density=(0.1*p.lgn_density**2)**0.5
+#            else:
+#                density=p.lgn_density
+
+                density = p.lgn_density
+
+                doity=True
+                if not p.blueOFF:
+                    if "Blue" in NAMEUH and l=="Off":
+                        doity=False
+
+                if doity:
+                    topo.sim[NAMEUH]=sheet.CFSheet(
+                        nominal_density=density,
+                        nominal_bounds=sheet.BoundingBox(radius=0.5+v1aff_radius),
+                        output_fns=make_OFs_for_an_rgc(),
+                        measure_maps=False)
+
+
+if p.V1:
+    if p.A:
+
+        topo.sim['V1'] = sheet.lissom.LISSOM(
+            nominal_density=p.cortex_density,
+            tsettle=p.tsettle, plastic=True, #apply_scaling=p.apply_scaling, 
+            nominal_bounds=sheet.BoundingBox(radius=0.5),
+            output_fns=[transferfn.misc.HomeostaticResponse()])
+
+    else:
+
+        topo.sim['V1'] = sheet.lissom.LISSOM(
+            nominal_density=p.cortex_density,
+            tsettle=p.tsettle,nominal_bounds=sheet.BoundingBox(radius=0.5))
+        topo.sim['V1'].output_fns[0].lower_bound=0.076 if p.dataset in natural_image_sets else 0.083
+        topo.sim['V1'].output_fns[0].upper_bound=0.626 if p.dataset in natural_image_sets else 0.633
+
+        # XXX enable me!
+        #topo.sim['V1'].joint_norm_fn=topo.sheet.optimized.compute_joint_norm_totals_opt
+
+    
+centerg   = pattern.Gaussian(size=p.censcale*0.07385,aspect_ratio=1.0,
+                             output_fns=[transferfn.DivisiveNormalizeL1()])
+surroundg = pattern.Gaussian(size=p.surscale*0.29540,aspect_ratio=1.0,
+                             output_fns=[transferfn.DivisiveNormalizeL1()])
+
+centergL   = pattern.Gaussian(size=0.07385,aspect_ratio=1.0,
+                             output_fns=[transferfn.DivisiveNormalizeL1()])
+surroundgL = pattern.Gaussian(size=0.29540,aspect_ratio=1.0,
+                             output_fns=[transferfn.DivisiveNormalizeL1()])
+    
+
+if p.dataset in natural_image_sets:
+    strength=4.7
+else:
+    raise
+
+num_aff=len(center_polarities)*len(opponent_types)
+
+
+prelgnthing = 'Retina'
+delay_2rgc = 0.05 
+### YMBK ###
+if hasattr(p,'preceplatinh') and p.preceplatinh:
+    delay_2rgc = 0
+    chrislib.more_global_stuff.add_preceplatinh(v1aff_radius,lgnaff_radius)
+    prelgnthing = 'postretcombo'
+    p.constant_mean_total_retina_output = None
+### YMBK ###
+
+
+if p.LGN:
+    for l in center_polarities:
+        basic_opponent_types_tmp=list(basic_opponent_types)
+        basic_opponent_types_tmp.reverse()
+
+        if p.BYOPP:
+            WWW = cone_types
+        elif p.rgcsym==1:
+            WWW = ['Red','Red','Green','Blue','Blue','Green']
+        else:
+            WWW = rg_cone_types
+
+        for (cone,opponentcenter,opponentsurround) in zip(WWW,basic_opponent_types,basic_opponent_types_tmp):
+
+            if p.redgreen:
+                topo.sim.connect(
+                    prelgnthing, opponentcenter+'LGN'+l, name='AfferentCenter',
+                    src_port='%sActivity'%cone,dest_port='Activity', # ***
+                    connection_type=projection.SharedWeightCFProjection, delay=delay_2rgc,
+                    strength=strength*(-1)**center_polarities.index(l), 
+                    nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                    weights_generator=centerg)
+
+                topo.sim.connect(
+                    prelgnthing, opponentsurround+'LGN'+l, name='AfferentSurround',
+                    src_port='%sActivity'%cone,dest_port='Activity', # ***
+                    connection_type=projection.SharedWeightCFProjection, delay=delay_2rgc,
+                    strength=strength*(-1)**(1+center_polarities.index(l)), 
+                    nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                    weights_generator=surroundg)
+
+
+            if p.BYOPP is False and p.rgcsym==0:
+                if p.blue:
+
+                    dothisone=True
+                    if not p.blueOFF:
+                        if l=="Off":
+                            dothisone=False
+
+                    if dothisone:
+                        topo.sim.connect(
+                            prelgnthing, 'Blue-RedGreen'+' LGN'+l,
+                            src_port='%sActivity'%cone,dest_port='Activity', # ***
+                            name='AfferentCenter'+cone,
+                            delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                            strength=0.5*strength*(-1)**(1+center_polarities.index(l)),
+                            nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                            weights_generator=centerg)
+            elif p.BYOPP is True and p.rgcsym==0:
+
+                if p.redgreen:
+                    topo.sim.connect(
+                        prelgnthing, 'Blue-RedGreen'+' LGN'+l,
+                        src_port='%sActivity'%cone,dest_port='Activity', # ***
+                        name='AfferentSurround'+cone,
+                        delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                        strength = 0.5*strength*(-1)**(1+center_polarities.index(l)), 
+                        nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                        weights_generator=surroundg)
+
+
+                    if p.BYOPPhack:
+                        topo.sim.connect(
+                            prelgnthing, 'RedGreen-Blue'+' LGN'+l,
+                            src_port='%sActivity'%cone,dest_port='Activity', # ***
+                            name='AfferentCenter'+cone,
+                            delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                            strength = 0.5*strength*(-1)**(center_polarities.index(l)), 
+                            nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                            weights_generator=centerg)
+
+
+        if p.BYOPP is False and p.rgcsym==0:
+            if p.blue:
+                dothisoneagain=True
+                if not p.blueOFF:
+                    if l=="Off":
+                        dothisoneagain=False
+
+
+                if dothisoneagain:
+                    topo.sim.connect(
+                        prelgnthing, 'Blue-RedGreen'+' LGN'+l,
+                        src_port='%sActivity'%'Blue',dest_port='Activity', # ***
+                        name='AfferentCenter'+'Blue', 
+                        delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                        strength=strength*(-1)**center_polarities.index(l),
+                        nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                        weights_generator=centerg)
+        elif p.BYOPP is True and p.rgcsym==0:
+            topo.sim.connect(
+                prelgnthing, 'Blue-RedGreen'+' LGN'+l,
+                src_port='%sActivity'%'Blue',dest_port='Activity', # ***
+                name='AfferentCenter'+'Blue', 
+                delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                strength = strength*(-1)**(center_polarities.index(l)), 
+                nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                weights_generator=centerg)
+
+            if p.BYOPPhack:
+                topo.sim.connect(
+                    prelgnthing,'RedGreen-Blue'+' LGN'+l,
+                    src_port='%sActivity'%'Blue',dest_port='Activity', # ***
+                    name='AfferentSurround'+'Blue', 
+                    delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                    strength = strength*(-1)**(1+center_polarities.index(l)), 
+                    #strength=4.7*(-1)**center_polarities.index(l),
+                    nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                    weights_generator=surroundg)
+
+        for cone in cone_types:#rg_cone_types:
+            if 'Luminosity ' in opponent_types:
+                topo.sim.connect(
+                    prelgnthing, 'Luminosity LGN'+l,
+                    src_port='%sActivity'%cone,dest_port='Activity', # ***
+                    name='AfferentCenter'+cone,
+                    delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                    strength=strength*(-1)**center_polarities.index(l)/len(cone_types),
+                    nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                    weights_generator=centergL)
+
+                topo.sim.connect(
+                    prelgnthing,'Luminosity LGN'+l,
+                    src_port='%sActivity'%cone,dest_port='Activity', # ***
+                    name='AfferentSurround'+cone, 
+                    delay=delay_2rgc,connection_type=projection.SharedWeightCFProjection,
+                    strength=strength*(-1)**(1+center_polarities.index(l))/len(cone_types),
+                    nominal_bounds_template=sheet.BoundingBox(radius=lgnaff_radius),
+                    weights_generator=surroundgL)
+
+
+        for opponent in opponent_types:
+            if p.A:
+                learning_rate = p.A_aff_lr/num_aff #/num_aff/ids # 0.10
+            else:
+                learning_rate = 0.9590/num_aff/ids # 0.03996
+
+            weights_generator=pattern.random.GaussianCloud(gaussian_size=2*v1aff_radius)
+
+            if p.A:
+                this_strength291 = p.A_aff_strength
+            else:
+                this_strength291 = 1.0
+
+
+            #if p.apply_scaling:
+            #    connection_type291 = projection.ScaledCFProjection
+            #    learning_fn291=learningfn.optimized.CFPLF_Scaled_opt()
+            #else:
+            connection_type291 = projection.CFProjection
+            learning_fn291=learningfn.optimized.CFPLF_Hebbian_opt()
+
+            doithere=True
+            if 'Blue' in opponent and p.blueOFF is False and l=="Off":
+                doithere=False
+
+            if "Red" in opponent or "Blue" in opponent or "Green" in opponent:
+                JNgroup = "Afferent" # CR
+            elif "Luminosity" in opponent:
+                JNgroup = "Afferent" # LUM
+
+            if doithere:
+                topo.sim.connect(
+                    opponent+'LGN'+l,'V1',delay=0.05,
+                    dest_port=('Activity',"JointNormalize", JNgroup),
+                    strength=this_strength291,name=opponent+'LGN'+l+'Afferent',
+                    learning_fn = learning_fn291,
+                    connection_type=connection_type291,
+                    weights_generator=weights_generator,
+                    nominal_bounds_template=sheet.BoundingBox(radius=v1aff_radius),
+                    learning_rate=learning_rate) 
+
+
+if p.V1:
+    if p.A:
+        exc_rad = 0.104
+        weights_generator = pattern.Gaussian(aspect_ratio=1.,size=0.05)
+        exc_lr = p.A_exc_lr                                        # 0.00
+        exc_str = p.A_exc_strength                                 # 1.70
+    else:
+        exc_rad = 0.10417
+        weights_generator = pattern.random.GaussianCloud(gaussian_size=2*0.10417)
+        exc_lr = 2.55528/ids                                       # 0.64
+        exc_str = 1.2 if p.dataset in natural_image_sets else 0.9  # 1.20
+
+    topo.sim.connect('V1','V1',delay=0.05,name='LateralExcitatory',
+                     connection_type=projection.ResizableCFProjection,
+                     strength=exc_str,
+                     weights_generator=weights_generator,
+                     nominal_bounds_template=sheet.BoundingBox(radius=exc_rad),
+                     learning_rate=exc_lr) 
+
+    if p.A:
+        inh_rad = 0.22917
+        gaussian_size = 0.15
+        inh_lr = p.A_inh_lr                                                        #  0.30
+        inh_str = -1.0*p.A_inh_strength                                            # -1.40
+    else:
+        inh_rad = 0.22917
+        gaussian_size = 2*inh_rad
+        inh_lr = 1.80873/ids/5 if p.dataset in natural_image_sets else 1.80873/ids #  0.09
+        inh_str = -1.75 if p.dataset in natural_image_sets else -0.9               # -1.75 
+
+    topo.sim.connect('V1','V1',delay=0.05,name='LateralInhibitory',
+                     connection_type=projection.CFProjection,
+                     strength=inh_str, 
+                     weights_generator=pattern.random.GaussianCloud(gaussian_size=gaussian_size),
+                     nominal_bounds_template=sheet.BoundingBox(radius=inh_rad),
+                     learning_rate=inh_lr)
+
+
+if p.V1:
+    if not p.A:
+        if p.dataset in natural_image_sets:
+            st = 1.0/2.0
+            increase = True
+        else:
+            raise
+        
+        sheet.lissom.schedule_events("topo.sim['V1']",st=st,
+                                     aff_name="Afferent",ids=ids,
+                                     increase_inhibition=increase)
+
+
+preference_maps = [
+        ('or',['Orientation Preference']),
+    ]
+
+preference_maps+=[('cr',['Hue Preference'])]
+
+
+pgs = [x for y in [m for n,m in preference_maps] for x in y] + \
+      ['Position Preference','Activity']
+
+    
+topo.command.basic.default_analysis_plotgroups=pgs
+    
+#if 'rg' in p.dims: measure_sine_pref.num_hue=8
+# CEBALERT: turn it up for CR - where? Didn't I already do it?
+measure_sine_pref.num_hue=8
+
+MeasureResponseCommand.duration=p.mrc_or_duration
+MeasureResponseCommand.apply_output_fns=False
+
+combined_preference_maps = {
+    ('or','cr'): dict(
+        name='Orientation and Hue Preference',
+        doc='Plot the orientation preference overlaid with hue preference boundaries.',
+        pre_plot_hooks=[],
+        plot_hooks=[overlaid_plots.instance(plot_template=[{"Hue":"OrientationPreference","Confidence":"OrientationSelectivity"},{"Strength":"OrientationSelectivity"}],overlay=[("contours","HuePreference",0.0,"red"),("contours","HuePreference",1./3.,"green"),("contours","HuePreference",2./3.,"blue")],normalize=True)],
+        normalize='Individually')
+    }
+
+for combined_dimensions,plotgroup_spec in combined_preference_maps.items():
+    plotgroup_spec['category']="Combined Preference Maps"
+    create_plotgroup(**plotgroup_spec)
+
+
+topo.analysis.featureresponses.FeatureMaps.selectivity_multiplier=17 #20
+
+
+### YMK ###
+lgn_boosts = {}
+if hasattr(p,'boostYELLOW3'):
+    chrislib.more_global_stuff.do_lgn_boosts(lgn_boosts)
+
+if p.hack_use_chrislib:    
+    if p.record_retina_histograms:
+        chrislib.recording.record_retina_histograms1(prelgnthing,cone_types)
+
+    if p.record_pg_histograms:
+        chrislib.recording.record_pg_histograms1(cone_types,p.analysis_colorspace)
+
+    if p.record_pg_out_histograms:
+        chrislib.recording.record_pg_out_histograms1(cone_types,p.analysis_colorspace)
+
+    if p.record_lgn_acts:
+        chrislib.recording.record_lgn_acts1(lgn_boosts)
+###########
+
+
+
+###########################################
+# rgcsym dim - boosting
+if p.LGN and p.V1 and len(lgn_boosts)>0:
+    chrislib.more_global_stuff.set_lgn_boost(lgn_boosts)
+###########################################
+
+
+
+
+#########################################
+if p.LGN:
+    lsht = ["Luminosity LGNOn", "Luminosity LGNOff"]
+    crsht = []
+
+    for nam,obj in topo.sim.objects().items():
+        if "LGN" in nam and not ("_" in nam):
+            if ("Red" in nam) or ("Blue" in nam) or ("Green" in nam):
+                crsht.append(nam)
+
+    # hack variables to do LGN norm
+    DONETHISTIME = {}
+    ALLDONE = crsht+lsht
+
+    constant_mean_total_lgn_output = p.constant_mean_total_lgn_output
+
+if p.V1:
+    CRproj = [nam for nam in topo.sim["V1"].projections().keys() if "LGN" in nam and not "_" in nam and "Afferent" in nam and "-" in nam]
+
+    Lproj = [nam for nam in topo.sim["V1"].projections().keys() if "Luminosity" in nam and not "_" in nam and "Afferent" in nam]
+
+    ### set learning rates according to LC
+    numcproj = len(CRproj)
+    topo.sim.run(0.0)
+    S = float(topo.sim["V1"].activity.size)
+
+    # hack variables for weight balancing
+    lprosumA = LC_L*S
+    cprosumA = LC_C*S
+
+    for nam in Lproj:
+        topo.sim['V1'].projections(nam).learning_rate=0.1*LC_L
+
+    for nam in CRproj:
+        topo.sim['V1'].projections(nam).learning_rate=0.1*LC_C
+        
+######################################        
+
+if hasattr(p,'threshRGC') and p.threshRGC is not None:
+    chrislib.lgnthresholding.set_projection_thresholds(p.threshRGC)
+
+
+###########################################################################
+### Default locations for model editor
+if p.LGN and p.V1:
+    vs=[None]*(num_aff-1) + ['V1'] + [None]*(num_aff)
+
+    ls=[]
+    for l in center_polarities:
+        for opponent in opponent_types:
+            if p.LGN:
+                doyi = True
+                if (not p.blueOFF) and 'Blue' in opponent and l=="Off":
+                    doyi=False
+                if doyi:
+                    ls += [opponent+'LGN'+l]+[None]
+
+    es=[]
+    es += [None]*(len(center_polarities)/2) + ['Retina',None] + \
+          [None]*(len(center_polarities)/2)
+
+    topo.sim.grid_layout([vs,ls,es], xstep=70, ystep=200, item_scale=0.75)
+
+    ### Vertical grouping of sheets for GUI
+    topo.sim['Retina'].row_precedence=0.1
+    for l,pol_precedence in zip(center_polarities,range(len(center_polarities))):
+        for opponent in opponent_types:
+            if p.LGN:
+                doiy = True
+                if (not p.blueOFF) and 'Blue' in opponent and l=="Off":
+                    doiy=False
+                if doiy:
+                    topo.sim[opponent+'LGN'+l].row_precedence=0.35+0.01*pol_precedence
+
+    topo.sim['V1'].row_precedence=0.9    
+###########################################################################

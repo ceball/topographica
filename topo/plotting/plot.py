@@ -302,7 +302,7 @@ class TemplatePlot(Plot):
                        resu = zeros(a.shape)
              else:
                   a_offset = a - range_min
-                  resu = a_offset/range_max  
+                  resu = a_offset/(range_max-range_min)
             
              return resu
         else:
@@ -400,7 +400,6 @@ class SHCPlot(TemplatePlot):
             hue = self._re_bound(self.plot_bounding_box,hue,box,density)
             sat = self._re_bound(self.plot_bounding_box,sat,box,density)
             val = self._re_bound(self.plot_bounding_box,val,box,density)
-            
             self.bitmap = HSVBitmap(hue,sat,val)
 
         self._orig_bitmap=self.bitmap

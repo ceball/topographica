@@ -102,6 +102,12 @@ def compute_joint_norm_totals(projlist,active_units_mask=True):
             p.flatcfs[i].norm_total=joint_sum
 
 
+def compute_joint_norm_totals2(projlist,active_units_mask=True):
+    jointsum = numpy.add.reduce([p.weights.sum() for p in projlist])
+    for p in projlist:
+        p.norm_total=jointsum
+
+
 class JointNormalizingCFSheet(CFSheet):
     """
     A type of CFSheet extended to support joint sum-based normalization.
@@ -135,6 +141,82 @@ class JointNormalizingCFSheet(CFSheet):
     joint_norm_fn = param.Callable(default=compute_joint_norm_totals,doc="""
     Function to use to compute the norm_total for each CF in each
     projection from a group to be normalized jointly.""")
+
+    # JABALERT: Should check that whenever a connection is added to a
+    # group, it has the same no of cfs as the existing connections.
+    def start(self):
+        self._normalize_weights(active_units_mask=False)        
+
+
+    # CEBALERT: rename active_units_mask and default to False
+    def _normalize_weights(self,active_units_mask=True):
+        """
+        Apply the weights_output_fns for every group of Projections.
+        
+        If active_units_mask is True, only active units will have
+        their weights normalized.
+        """    
+        for key,projlist in self._grouped_in_projections('JointNormalize'):
+            if key == None:
+                normtype='Individually'
+            else:
+                normtype='Jointly'
+                self.joint_norm_fn(projlist,active_units_mask)
+
+            self.debug(normtype + " normalizing:")
+
+            for p in projlist:
+                p.apply_learn_output_fns(active_units_mask=active_units_mask)
+                self.debug('  ',p.name)
+
+
+    def learn(self):
+        """
+        Call the learn() method on every Projection to the Sheet, and
+        call the output functions (jointly if necessary).
+        """
+        # Ask all projections to learn independently
+        for proj in self.in_connections:
+            if not isinstance(proj,Projection):
+                self.debug("Skipping non-Projection "+proj.name)
+            else:
+                proj.learn()
+
+        # Apply output function in groups determined by dest_port
+        self._normalize_weights()
+
+
+class JointNormalizingProjectionSheet(ProjectionSheet):
+    """
+    A type of CFSheet extended to support joint sum-based normalization.
+
+    For L1 normalization, joint normalization means normalizing the
+    sum of (the absolute values of) all weights in a set of
+    corresponding CFs in different Projections, rather than only
+    considering weights in the same CF.
+
+    This class makes it possible for a model to use joint
+    normalization, by providing a mechanism for grouping Projections
+    (see _port_match), plus a learn() function that computes the joint
+    sums.  Joint normalization also requires having ConnectionField
+    store and return a norm_total for each neuron, and having an
+    TransferFn that will respect this norm_total rather than the strict
+    total of the ConnectionField's weights.  At present,
+    CFPOF_DivisiveNormalizeL1 and CFPOF_DivisiveNormalizeL1_opt do use
+    norm_total; others can be extended to do something similar if
+    necessary.
+
+    To enable joint normalization, you can declare that all the
+    incoming connections that should be normalized together each
+    have a dest_port of:
+
+    dest_port=('Activity','JointNormalize', 'AfferentGroup1'),
+
+    Then all those that have this dest_port will be normalized
+    together, as long as an appropriate TransferFn is being used.
+    """
+
+    joint_norm_fn = param.Callable(default=compute_joint_norm_totals2)
 
     # JABALERT: Should check that whenever a connection is added to a
     # group, it has the same no of cfs as the existing connections.

@@ -25,13 +25,14 @@ import os
 import Image
 import ImageDraw
 import ImageFont
-from colorsys import hsv_to_rgb
+#from colorsys import hsv_to_rgb
 import numpy.oldnumeric as Numeric
 import numpy
 
 import param
 from param import resolve_path
 
+from colorhacks.global_stuff import cconv
 
 # CEBALERT: can we just use load_default()? Do we even need TITLE_FONT
 # at all?
@@ -196,7 +197,7 @@ class PaletteBitmap(Bitmap):
         super(PaletteBitmap,self).__init__(newImage)
 
 
-
+# well this stuff's already bad - let's see if I can make it worse...
 class HSVBitmap(Bitmap):
     """
     Bitmap constructed from 3 2D arrays, for hue, saturation, and value.
@@ -211,31 +212,23 @@ class HSVBitmap(Bitmap):
     constructed by RGBBitmap, and can be used in the same way.
     """
 
-    def __init__(self,hue,sat,val):
+    def __init__(self,hue,sat,val,hue_hack=None):
         """Each matrix must be the same size, with values in the range 0.0 to 1.0."""
-        shape = hue.shape # Assumed same as sat.shape and val.shape
-        rmat = Numeric.zeros(shape,Numeric.Float)
-        gmat = Numeric.zeros(shape,Numeric.Float)
-        bmat = Numeric.zeros(shape,Numeric.Float)
 
         # Note: should someday file a feature request for PIL for them
         # to accept an image of type 'HSV', so that they will do this
         # conversion themselves, without us needing an explicit loop
         # here.  That should speed this up.
+
         ch = hue.clip(0.0,1.0)
         cs = sat.clip(0.0,1.0)
         cv = val.clip(0.0,1.0)
+    
+        RGB = cconv.analysis2display(numpy.dstack( (ch,cs,cv) ))
         
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                r,g,b = hsv_to_rgb(ch[i,j],cs[i,j],cv[i,j])
-                rmat[i,j] = r
-                gmat[i,j] = g
-                bmat[i,j] = b
-        
-        rImage = self._arrayToImage(rmat)
-        gImage = self._arrayToImage(gmat)
-        bImage = self._arrayToImage(bmat)
+        rImage = self._arrayToImage(RGB[:,:,0])
+        gImage = self._arrayToImage(RGB[:,:,1])
+        bImage = self._arrayToImage(RGB[:,:,2])
 
         super(HSVBitmap,self).__init__(Image.merge('RGB',(rImage,gImage,bImage)))
 

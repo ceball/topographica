@@ -21,6 +21,7 @@ $Id$
 
 __version__ = '$Revision$'
 
+import numpy
 from copy import copy
 
 from numpy import abs,array,zeros,where
@@ -550,9 +551,23 @@ class CFProjection(Projection):
         The default of 1 gives a minimum matrix of 3x3. 0 would
         allow a 1x1 matrix.""")
 
+    def getallcfweightssumhack(self):
+        elsum = 0.0
+        for cf in self.cfs.flat:
+            elsum+=cf.norm_total #cf.weights.sum()
+        return elsum
+
+    def setallcfweightssumhack(self,newsum):
+        currsum = self.allcfweightssumhack
+        if currsum>0:
+            fact = newsum/currsum
+            for cf in self.cfs.flat:
+                cf.weights*=fact
+                del cf.norm_total
+        
+    allcfweightssumhack = property(getallcfweightssumhack,setallcfweightssumhack)
 
     precedence = param.Number(default=0.8)
-
 
     def __init__(self,initialize_cfs=True,**params):
         """
@@ -591,7 +606,6 @@ class CFProjection(Projection):
         if initialize_cfs:
             self._create_cfs()
 
-            
         ### JCALERT! We might want to change the default value of the
         ### input value to self.src.activity; but it fails, raising a
         ### type error. It probably has to be clarified why this is
@@ -615,7 +629,7 @@ class CFProjection(Projection):
         self.cfs = vectorized_create_cf(*self._generate_coords())
         self.flatcfs = list(self.cfs.flat)
 
-        
+
     def _create_cf(self,x,y):
         """
         Create a ConnectionField at x,y in the src sheet.
@@ -693,6 +707,7 @@ class CFProjection(Projection):
         return UnitView((matrix_data,self.src.bounds),sheet_x,sheet_y,self,timestamp)
 
 
+
     def activate(self,input_activity):
         """Activate using the specified response_fn and output_fn."""
         self.input_buffer = input_activity
@@ -753,7 +768,6 @@ class CFProjection(Projection):
         rows,cols=self.cfs.shape
         return sum([len((cf.mask if cf.mask is not None else cf.weights).ravel().nonzero()[0])
                     for cf,i in MaskedCFIter(self)()])
-
 
 # CEB: have not yet decided proper location for this method
 # JAB: should it be in PatternGenerator?
@@ -909,6 +923,8 @@ class CFSheet(ProjectionSheet):
                 key = ('Weights',v.projection.dest.name,v.projection.name,x,y)
                 v.proj_src_name = v.projection.src.name
                 src.sheet_views[key] = v
+
+
 
 
     ### JCALERT! This should probably be deleted...

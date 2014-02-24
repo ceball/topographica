@@ -176,7 +176,8 @@ def clear_event_queue():
     topo.sim.event_clear()
 
 
-def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=False,apply_output_fns=True):
+# CEBALERT: hacked and abused in various ways to support my analyses :(
+def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=False,apply_output_fns=True,give_me_back=None):
     """
     Present the specified test patterns for the specified duration.
 
@@ -213,25 +214,53 @@ def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=Fals
     if not overwrite_previous:
         save_input_generators()
 
+
     if not plastic:
         # turn off plasticity everywhere
         for sheet in topo.sim.objects(Sheet).values():
              sheet.override_plasticity_state(new_plasticity_state=False)
-
+        
     if not apply_output_fns:
         for each in topo.sim.objects(Sheet).values():
             if hasattr(each,'measure_maps'):
                if each.measure_maps: 
                    each.apply_output_fns = False
 
+    ### handling correlation hacks
+    correlate = __main__.__dict__.get('Icorrelate')
+    analysis_correlation = __main__.__dict__.get('analysis_correlation',True)
+    def set_correlation(generator):
+        if correlate is not None:
+            if 'correlate' in generator.params():
+                if analysis_correlation is False: 
+                    # e.g. simulating a correlation from the external environment
+                    # during training but not present during testing                    
+                    corr = None
+                else:
+                    corr = correlate
+                generator._old_correlate = generator.correlate
+                generator.correlate = correlate
+            else: # wouldn't need this kind of thing if wrapping was automatic.
+                raise
+
+    def restore_correlate(generator):
+        if hasattr(generator,'_old_correlate'):
+            #print 'restoring corr on %s to %s'%(generator.name,generator._old_correlate)
+            generator.correlate = generator._old_correlate
+            del generator._old_correlate
+    ### end handling correlation hacks
+
+
     # Register the inputs on each input sheet
     generatorsheets = topo.sim.objects(GeneratorSheet)
     if not isinstance(inputs,dict):
         for g in generatorsheets.values():
+            set_correlation(inputs)
             g.set_input_generator(inputs)
     else:
         for each in inputs.keys():
             if generatorsheets.has_key(each):
+                set_correlation(inputs[each])
                 generatorsheets[each].set_input_generator(inputs[each])
             else:
                 param.Parameterized().warning(
@@ -239,7 +268,61 @@ def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=Fals
 
     topo.sim.event_push()
     # CBENHANCEMENT: would be nice to break this up for visualizing motion
-    topo.sim.run(duration) 
+
+
+    constant_mean_total_lgn_output = __main__.__dict__.get("constant_mean_total_lgn_output",None)
+
+    if not plastic:
+        __main__.__dict__["i_am_learning"]=False
+    
+        if constant_mean_total_lgn_output and apply_output_fns:
+            # CEBALERT: what is this??
+            __main__.__dict__["constant_mean_total_lgn_output"]=4*constant_mean_total_lgn_output
+        
+    #print duration,apply_output_fns
+    topo.sim.run(duration)
+
+    if not plastic:
+        del __main__.__dict__["i_am_learning"]
+        
+        if constant_mean_total_lgn_output and apply_output_fns:
+            __main__.__dict__["constant_mean_total_lgn_output"]=constant_mean_total_lgn_output
+
+
+    if hasattr(topo,'guimain'):
+        topo.guimain.refresh_activity_windows()
+        topo.guimain.update_idletasks()
+
+    if not isinstance(inputs,dict):
+        restore_correlate(inputs)
+    else:
+        for v in inputs.values():
+            restore_correlate(v)
+
+
+    outs = None
+    
+    if give_me_back is not None:
+        
+        import copy
+        outs = {}
+        for s in give_me_back:
+            if s=='Retina' or s=='postretcombo':
+                try:
+                    outs[s] = {}
+                    outs[s]['red'] = copy.copy(topo.sim[s].activity_red)
+                    outs[s]['green'] = copy.copy(topo.sim[s].activity_green)
+                    outs[s]['blue'] = copy.copy(topo.sim[s].activity_blue)
+                except AttributeError:
+                    outs[s] = copy.copy(topo.sim[s].activity)
+            elif s=='LGN':
+                outs[s] = {}
+                lgn_sheets = [shtname for shtname in topo.sim.objects().keys() if 'LGN' in shtname and not '_' in shtname and not 'Luminosity' in shtname]
+                for sht in lgn_sheets:
+                    outs[s][sht] = copy.copy(topo.sim[sht].activity)
+            else:                
+                outs[s] = copy.copy(topo.sim[s].activity)
+        
     topo.sim.event_pop()
 
     # turn sheets' plasticity and output_fn plasticity back on if we turned it off before
@@ -247,6 +330,7 @@ def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=Fals
     if not plastic:
         for sheet in topo.sim.objects(Sheet).values():
             sheet.restore_plasticity_state()
+
           
     if not apply_output_fns:
         for each in topo.sim.objects(Sheet).values():
@@ -255,6 +339,8 @@ def pattern_present(inputs={},duration=1.0,plastic=False,overwrite_previous=Fals
         
     if not overwrite_previous:
         restore_input_generators()
+
+    return outs
 
 
 

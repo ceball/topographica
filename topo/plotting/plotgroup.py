@@ -36,6 +36,31 @@ from plotfilesaver import PlotGroupSaver,CFProjectionPlotGroupSaver
 #   can be plotted for CFSheets).
 # * There are no unit tests
 
+def crpro(pro):
+    pname = pro.name.lower()
+    if 'red' in pname or 'green' in pname or 'blue' in pname:
+        return True
+    else:
+        return False
+
+def append_(dict_,key,thing):
+    if key not in dict_.keys(): # thanks judah
+        dict_[key] = []
+    dict_[key].append(thing)
+
+def hacked_grouped_in_projections(sheet,ptype,crhack=False):
+    grouped_in_proj = sheet._grouped_in_projections(ptype)
+
+    if crhack is False:
+        return grouped_in_proj
+    else:
+        new_grouped_in_proj = KeyedList()
+        for key,projlist in grouped_in_proj.items():
+            for pro in projlist:
+                key2 = key+'_cr' if crpro(pro) else key
+                append_(new_grouped_in_proj,key2,pro)
+        return new_grouped_in_proj
+
 
 def _cmp_plot(plot1,plot2):
     """
@@ -645,7 +670,7 @@ class ProjectionSheetPlotGroup(TemplatePlotGroup):
         """The Sheet from which to produce plots.""")
 
     normalize = param.ObjectSelector(default='None',
-                                  objects=['None','Individually','AllTogether','JointProjections'],doc="""
+                                  objects=['None','Individually','AllTogether','JointProjections','JointCRProjections'],doc="""
         'Individually': scale each plot so that the peak value will be white
         and the minimum value black.
 
@@ -746,6 +771,34 @@ class ProjectionSheetPlotGroup(TemplatePlotGroup):
 
             for key,proj in self.__keyed_projections():
                 named_ranges[proj.name] = ranges[key]
+    
+
+        elif self.normalize=='JointCRProjections':
+            ranges = {}
+
+            #self.sheet._grouped_in_projections('JointNormalize')
+            for group_key in hacked_grouped_in_projections(self.sheet,'JointNormalize',crhack=True).keys():
+                if group_key is None:
+                    ranges[group_key]=False
+                else:
+                    # self.sheet._grouped_in_projections('JointNormalize')
+                    projlist = hacked_grouped_in_projections(self.sheet,'JointNormalize',crhack=True)[group_key]
+                    self._check_data_exist(projlist)
+
+                    # hack: need a _kw_for_make_template() that works
+                    # with a single range value and restricts
+                    # projections to those with a specified key.
+                    self._group_key = group_key
+                    _orig = self._kw_for_make_template_plot
+                    self._kw_for_make_template_plot = self._hack2
+
+                    plotlist = super(ProjectionSheetPlotGroup,self)._template_plots(range_=None)
+                    self._kw_for_make_template_plot = _orig
+                    ranges[group_key] = _get_value_range(plotlist) 
+
+            for key,proj in self.__keyed_projections(crhack=True):
+                named_ranges[proj.name] = ranges[key]
+
 
         return super(ProjectionSheetPlotGroup,self)._template_plots(range_=named_ranges)
 
@@ -805,9 +858,9 @@ class ProjectionSheetPlotGroup(TemplatePlotGroup):
         return channels
 
 
-    # CEBALERT: used to temporarily override
-    # _kw_for_make_template_plot(), to allow calculation of range for
-    # joint normalization. A mess.
+#    # CEBALERT: used to temporarily override
+#    # _kw_for_make_template_plot(), to allow calculation of range for
+#    # joint normalization. A mess.
     def _hack(self,range_):
         for key,projlist in self.sheet._grouped_in_projections('JointNormalize'):
             if key==self._group_key:
@@ -819,13 +872,26 @@ class ProjectionSheetPlotGroup(TemplatePlotGroup):
                 return args
         raise
 
+    def _hack2(self,range_):        
+        for key,projlist in hacked_grouped_in_projections(self.sheet,'JointNormalize',crhack=True):
+            if key==self._group_key:
+                args = []
+                for proj in projlist or self.projections():
+                    for d in self._kw_for_one_proj(proj):
+                        d['range_']=range_
+                        args.append(d)
+                return args
+        raise
 
-    def __keyed_projections(self):
+    
+    def __keyed_projections(self,crhack=False):
         # helper method to return a list of (key,proj) pairs from self.sheet
         keys_and_projns = []
-        for key,projlist in self.sheet._grouped_in_projections('JointNormalize'):
+        
+        for key,projlist in hacked_grouped_in_projections(self.sheet,'JointNormalize',crhack):#self.sheet._grouped_in_projections('JointNormalize'):
             for proj in projlist:
                 keys_and_projns.append((key,proj))
+
         return keys_and_projns
 
 
@@ -1009,7 +1075,7 @@ class ProjectionPlotGroup(GridPlotGroup):
 
     # ProjectionSheetPlotGroup
     normalize = param.ObjectSelector(default='None',
-                                  objects=['None','Individually','AllTogether','JointProjections'])
+                                  objects=['None','Individually','AllTogether','JointProjections','JointCRProjections'])
 
 
     # Overrides:
@@ -1171,6 +1237,7 @@ class UnitPlotGroup(ProjectionSheetPlotGroup):
 
     def _exec_plot_hooks(self,**kw):
         super(UnitPlotGroup,self)._exec_plot_hooks(coords=[(self.x,self.y)],**kw)
+
 
 
 

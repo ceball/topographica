@@ -100,11 +100,19 @@ class save_plotgroup(ParameterizedFunction):
         Optional parameters to pass to the underlying PlotFileSaver object.""")
 
 
+    cachemeup = param.Boolean(default=False)
+    
+    hackpreplothook0params = param.Dict(default={})
+
     # Class variables to cache values from previous invocations
     previous_time=[-1]
     previous_plotgroups=[]
 
     def __call__(self,name,**params):
+        print "savepg",name
+        import time
+        print "@ ",time.strftime("%a %d %b %Y %H:%M:%S +0000",time.gmtime())
+        
         p=ParamOverrides(self,params,allow_extra_keywords=True)
 
         plotgroup = copy.deepcopy(plotgroups[name])
@@ -125,10 +133,11 @@ class save_plotgroup(ParameterizedFunction):
             plotgroup.set_param(n,v)
 
         # Reset plot cache when time changes
-        if (topo.sim.time() != self.previous_time[0]):
+        if len(self.previous_time)>0 and (topo.sim.time() != self.previous_time[0]):
             del self.previous_time[:]
             del self.previous_plotgroups[:]
-            self.previous_time.append(topo.sim.time())
+            if p.cachemeup:
+                self.previous_time.append(topo.sim.time())
             
         # Skip update step if equivalent to prior command at this sim time
         update=True
@@ -141,13 +150,26 @@ class save_plotgroup(ParameterizedFunction):
         keywords=" ".join(["%s" % (v.name if isinstance(v,param.Parameterized) else str(v)) for n,v in p.extra_keywords().items()])
         plot_description="%s%s%s" % (plotgroup.name," " if keywords else "",keywords)
         if update:
-            self.previous_plotgroups.append(plotgroup)
+            if p.cachemeup:
+                self.previous_plotgroups.append(plotgroup)
             self.debug("%s: Running pre_plot_hooks" % plot_description)
         else:
             self.message("%s: Using cached results from pre_plot_hooks" % plot_description)
 
+        origp = {}
+        for hackpname,hackpvalue in p.hackpreplothook0params.items():
+            print "Override %s"%hackpname
+            origp[hackpname] = getattr(plotgroup.pre_plot_hooks[0],hackpname)
+            setattr(plotgroup.pre_plot_hooks[0],hackpname,hackpvalue)
+            
         plotgroup.make_plots(update=update)
         plotgroup.filesaver.save_to_disk(**(p.saver_params))
+
+        for hackpname,hackpvalue in origp.items():
+            print "Restore %s"%hackpname
+            setattr(plotgroup.pre_plot_hooks[0],hackpname,hackpvalue)
+
+
 
 
 
@@ -210,6 +232,8 @@ pg = create_plotgroup(name='Activity',category='Basic',
 pg.add_plot('Activity',[('Strength','Activity')])
 
 
+
+
 def update_rgb_activities():
     """
     Make available Red, Green, and Blue activity matrices for all appropriate sheets.
@@ -228,6 +252,14 @@ pg = create_plotgroup(name='RGB',category='Other',
              doc='Combine and plot the red, green, and blue activity for all appropriate Sheets.', auto_refresh=True,
              pre_plot_hooks=[update_rgb_activities], plot_immediately=True)
 pg.add_plot('RGB',[('Red','RedActivity'),('Green','GreenActivity'),('Blue','BlueActivity')])
+
+
+pg = create_plotgroup(name='LMSActivity',category='Other',
+             doc='Plot the activity for all Sheets.', auto_refresh=True,
+             pre_plot_hooks=[update_rgb_activities], plot_immediately=True)
+pg.add_plot('RedActivity',[('Strength','RedActivity')])
+pg.add_plot('GreenActivity',[('Strength','GreenActivity')])
+pg.add_plot('BlueActivity',[('Strength','BlueActivity')])
 
 
 
@@ -257,14 +289,23 @@ pg= create_plotgroup(name='Projection',category="Basic",
 pg.add_plot('Projection',[('Strength','Weights')])
 
 
-
+warn_coords = True
 class update_projectionactivity(ProjectionSheetMeasurementCommand):
     """
     Add SheetViews for all of the Projections of the ProjectionSheet
     specified by the sheet parameter, for use in template-based plots.
     """
-    
+    ddd = param.String("ProjectionActivity")
+
     def __call__(self,**params):
+
+        if 'coords' in params:
+            global warn_coords
+            if warn_coords:
+                print "HACKALERT: removing coords from kw to update_projectionactivity()."
+                warn_coords=False
+            del params['coords']
+            
         p=ParamOverrides(self,params)
         self.params('sheet').compute_default()        
         s = p.sheet
@@ -286,7 +327,7 @@ class update_projectionactivity(ProjectionSheetMeasurementCommand):
 ## the name of the src available for the plot to be labelled.
                     v.proj_src_name = v.projection.src.name
 ######################################################################
-                    key = ('ProjectionActivity',v.projection.dest.name,v.projection.name)
+                    key = (p.ddd,v.projection.dest.name,v.projection.name)
                     v.projection.dest.sheet_views[key] = v
 
 
@@ -440,9 +481,6 @@ class measure_sine_pref(SinusoidalMeasureResponseCommand):
 
         if p.num_disparity>1: features += \
             [Feature(name="phasedisparity",range=(0.0,2*pi),step=2*pi/p.num_disparity,cyclic=True)]
-
-        if p.num_hue>1: features += \
-            [Feature(name="hue",range=(0.0,1.0),step=1.0/p.num_hue,cyclic=True)]
             
         if p.num_direction>0 and p.num_speeds==0: features += \
             [Feature(name="speed",values=[0],cyclic=False)]
@@ -584,6 +622,9 @@ pg.add_static_image('Color Key','command/dr_key_white_vert_small.png')
 
 
 
+
+
+
 class measure_hue_pref(SinusoidalMeasureResponseCommand):
     """Measure a hue preference map by collating the response to patterns."""
 
@@ -594,22 +635,31 @@ class measure_hue_pref(SinusoidalMeasureResponseCommand):
 
     subplot = param.String("Hue")
 
+    keep_peak = param.Boolean(default=True)
+
     # For backwards compatibility; not sure why it needs to differ from the default
     static_parameters = param.List(default=[])
 
     def _feature_list(self,p):
-        return [Feature(name="frequency",values=p.frequencies),
-                Feature(name="orientation",range=(0,pi),step=pi/p.num_orientation,cyclic=True),
-                Feature(name="hue",range=(0.0,1.0),step=1.0/p.num_hue,cyclic=True),
-                Feature(name="phase",range=(0.0,2*pi),step=2*pi/p.num_phase,cyclic=True)]
+        import __main__
+        if __main__.__dict__.get('hue_pref_with_fullfield',False):
+            # can skip stuff
+            return [Feature(name="hue",range=(0.0,1.0),step=1.0/p.num_hue,cyclic=True,keep_peak=p.keep_peak)]
+        else:
+            return [Feature(name="frequency",values=p.frequencies),
+                    Feature(name="orientation",range=(0,pi),step=pi/p.num_orientation,cyclic=True),
+                    Feature(name="hue",range=(0.0,1.0),step=1.0/p.num_hue,cyclic=True,keep_peak=p.keep_peak),
+                    Feature(name="phase",range=(0.0,2*pi),step=2*pi/p.num_phase,cyclic=True)]
 
 
 pg= create_plotgroup(name='Hue Preference',category="Preference Maps",
              doc='Measure preference for colors.',
-             pre_plot_hooks=[measure_hue_pref.instance()],normalize='Individually')
+             pre_plot_hooks=[measure_hue_pref.instance()])
 pg.add_plot('Hue Preference',[('Hue','HuePreference')])
 pg.add_plot('Hue Preference&Selectivity',[('Hue','HuePreference'), ('Confidence','HueSelectivity')])
 pg.add_plot('Hue Selectivity',[('Strength','HueSelectivity')])
+
+
 
 
 
@@ -800,5 +850,7 @@ __all__ = list(set([k for k,v in locals().items()
                     if isinstance(v,types.FunctionType) or 
                     (isinstance(v,type) and issubclass(v,ParameterizedFunction))
                     and not v.__name__.startswith('_')]))
+
+
 
 

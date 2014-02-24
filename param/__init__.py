@@ -732,10 +732,11 @@ class List(Parameter):
     list to be enforced.  If the class is non-None, all
     items in the list are checked to be of that type.
     """
-    __slots__ = ['class_','bounds']
+    __slots__ = ['class_','bounds','allow_None']
 
     def __init__(self,default=[],class_=None,instantiate=True,
-                 bounds=(0,None),**params):
+                 bounds=(0,None),allow_None=False,**params):
+        self.allow_None = allow_None
         self.class_ = class_
         self.bounds = bounds
         self._check_bounds(default)
@@ -755,6 +756,9 @@ class List(Parameter):
         Checks that the list is of the right length and has the right contents.
         Otherwise, an exception is raised.
         """
+        if val is None:
+            return True
+        
         if not (isinstance(val,list)):
             raise ValueError("List '%s' must be a list."%(self._attrib_name))
 
@@ -804,10 +808,12 @@ class Dict(ClassSelector):
         super(Dict,self).__init__(dict,**params)
 
 
+# CEBALERT: I hacked in a bunch of stuff relating to paths :(
 
 # For portable code:
 #   - specify paths in unix (rather than Windows) style;
-#   - use resolve_path() for paths to existing files to be read, 
+#   - use resolve_file_path() for paths to existing files to be read, 
+#   - use resolve_folder_path() for paths to existing folders to be read, 
 #     and normalize_path() for paths to new files to be written.
 
 class resolve_path(ParameterizedFunction):
@@ -827,32 +833,51 @@ class resolve_path(ParameterizedFunction):
     than just os.getcwd() can be used, and the file must exist.
     """
 
-    search_paths = List(default=[os.getcwd()],pickle_default_value=False,doc="""
+    search_paths = List(default=[os.getcwd()], pickle_default_value=False, doc="""
         Prepended to a non-relative path, in order, until a file is
         found.""")
 
-    def __call__(self,path,**params):
-        p = ParamOverrides(self,params)
+    path_to_file = Boolean(default=True, pickle_default_value=False, doc="""
+        String specifying whether the path refers to a 'File' or a 'Folder'.""")
+        
+    def __call__(self, path, **params):
+        p = ParamOverrides(self, params)
 
         path = os.path.normpath(path)
 
         if os.path.isabs(path):
-            if os.path.isfile(path):
-                return path
+            if p.path_to_file:
+                if os.path.isfile(path):
+                    return path
+                else:
+                    raise IOError("File '%s' not found." %path)
+            elif not p.path_to_file:
+                if os.path.isdir(path):
+                    return path
+                else:
+                    raise IOError("Folder '%s' not found." %path)
             else:
-                raise IOError('File "%s" not found.'%path)
+                raise IOError("Type '%s' not recognised." %p.path_type)
+                
         else:
             paths_tried = []
             for prefix in p.search_paths:
-                try_path = os.path.join(os.path.normpath(prefix),path)
-                if os.path.isfile(try_path): 
-                    return try_path
+                try_path = os.path.join(os.path.normpath(prefix), path)
+                
+                if p.path_to_file:
+                    if os.path.isfile(try_path):
+                        return try_path
+                elif not p.path_to_file:
+                    if os.path.isdir(try_path):
+                        return try_path
+                else:
+                    raise IOError("Type '%s' not recognised." %p.path_type)
+
                 paths_tried.append(try_path)
 
-            raise IOError('File "'+os.path.split(path)[1]+'" was not found in the following place(s): '+str(paths_tried)+'.')
+            raise IOError(os.path.split(path)[1] + " was not found in the following place(s): " + str(paths_tried) + ".")
 
-
-
+            
 class normalize_path(ParameterizedFunction):
     """
     Convert a UNIX-style path to the current OS's format,
@@ -878,12 +903,12 @@ class normalize_path(ParameterizedFunction):
         return os.path.normpath(path)
 
 
-
-class Filename(Parameter):
+class Path(Parameter):
     """
-    Parameter that can be set to a string specifying the
-    path of a file (in unix style); returns it in the format of
-    the user's operating system.  
+    Parameter that can be set to a string specifying the path of a 
+    file or folder (in unix style); returns it in the format of the 
+    user's operating system. Please use the Filename or Foldername
+    classes if you require discrimination between the two.
 
     The specified path can be absolute, or relative to either:
 
@@ -895,20 +920,21 @@ class Filename(Parameter):
       is None).
     """
     __slots__ = ['search_paths'] 
-
-    def __init__(self,default=None,search_paths=None,**params):
+    
+    def __init__(self, default=None, search_paths=None, **params):
         if search_paths is None:
             search_paths = []
-        self.search_paths = search_paths
-        super(Filename,self).__init__(default,**params)
-
-    def _resolve(self,pth):
-        if self.search_paths:
-            return resolve_path(pth,search_paths=self.search_paths)
-        else:
-            return resolve_path(pth)                               
         
-    def __set__(self,obj,val):
+        self.search_paths = search_paths
+        super(Path,self).__init__(default,**params)
+            
+    def _resolve(self, path):
+        if self.search_paths:
+            return resolve_path(path, search_paths=self.search_paths)
+        else:
+            return resolve_path(path)                               
+        
+    def __set__(self, obj, val):
         """
         Call Parameter's __set__, but warn if the file cannot be found.
         """
@@ -917,21 +943,68 @@ class Filename(Parameter):
         except IOError, e:
             Parameterized(name="%s.%s"%(obj.name,self._attrib_name)).warning('%s'%(e.args[0]))
 
-        super(Filename,self).__set__(obj,val)
+        super(Path,self).__set__(obj,val)
         
-    def __get__(self,obj,objtype):
+    def __get__(self, obj, objtype):
         """
         Return an absolute, normalized path (see resolve_path).
         """
-        raw_path = super(Filename,self).__get__(obj,objtype)
+        raw_path = super(Path,self).__get__(obj,objtype)
         return self._resolve(raw_path)
 
     def __getstate__(self):
         # don't want to pickle the search_paths        
-        state = super(Filename,self).__getstate__()
+        state = super(Path,self).__getstate__()
+        
         if 'search_paths' in state:
             state['search_paths'] = []
+        
         return state
 
+
+class Filename(Path):
+    """
+    Parameter that can be set to a string specifying the path of a 
+    file (in unix style); returns it in the format of the user's 
+    operating system.  
+
+    The specified path can be absolute, or relative to either:
+
+    * any of the paths specified in the search_paths attribute (if
+      search_paths is not None); 
+    or
+    
+    * any of the paths searched by resolve_path() (if search_paths
+      is None).
+    """
+    
+    def _resolve(self, path):
+        if self.search_paths:
+            return resolve_path(path, path_to_file=True, search_paths=self.search_paths)
+        else:
+            return resolve_path(path, path_to_file=True)       
+
+            
+class Foldername(Path):
+    """
+    Parameter that can be set to a string specifying the
+    path of a folder (in unix style); returns it in the format of
+    the user's operating system.  
+
+    The specified path can be absolute, or relative to either:
+
+    * any of the paths specified in the search_paths attribute (if
+      search_paths is not None); 
+    or
+    
+    * any of the paths searched by resolve_dir_path() (if search_paths
+      is None).
+    """
+
+    def _resolve(self, path):
+        if self.search_paths:
+            return resolve_path(path, path_to_file=False, search_paths=self.search_paths)
+        else:
+            return resolve_path(path, path_to_file=False)       
 
 

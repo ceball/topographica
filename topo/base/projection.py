@@ -11,6 +11,7 @@ from numpy import array,asarray,ones,sometrue, logical_and, logical_or
 import param
 from param.parameterized import overridable_property
 
+from topo.base.arrayutil import clip_upper
 from topo.misc.keyedlist import KeyedList # CEBALERT: not in base
 
 from sheet import Sheet
@@ -321,6 +322,10 @@ class Projection(EPConnection):
         raise NotImplementedError
 
 
+import __main__
+import topo
+
+THRESH = None
 
 class ProjectionSheet(Sheet):
     """
@@ -461,10 +466,9 @@ class ProjectionSheet(Sheet):
         Subclasses may override this method to whatever it means to
         calculate activity in that subclass.
         """
-        
         self.activity *= 0.0
         tmp_dict={}
-        
+
         for proj in self.in_connections:
             if (proj.activity_group != None) | (proj.dest_port[0] != 'Activity'):
                 if not tmp_dict.has_key(proj.activity_group[0]): 
@@ -479,12 +483,137 @@ class ProjectionSheet(Sheet):
             for proj in tmp_dict[priority]:
                 tmp_activity += proj.activity
             self.activity=tmp_dict[priority][0].activity_group[1](self.activity,tmp_activity)
+
+
+        # CEBALERT: So many hacks! Any of these mechanisms that we
+        # want to keep should be implemented with existing
+        # topographica constructs.
+
+        # scheme if constant_mean_total_lgn_output or LC has been set:
+        #   1. gather all lgn activities
+        #   2. clip all lower at 0
+        #   3. (optional) if thresholding, remove all activity below THRESH
+        #   4. apply output fns (no longer output fns)... - in my case will only ever be temporal normalization
+        #   5. ensure constant_mean_total_lgn_output
+        #   6. apply LC balance by scaling weights
+        #   7. send out all lgn activities
+
+        constant_mean_total_lgn_output = __main__.__dict__.get('constant_mean_total_lgn_output',None)
+        LC = __main__.__dict__.get("LC",None)
+        i_am_learning = __main__.__dict__.get("i_am_learning",True)
+
+        Lproj = __main__.__dict__.get("Lproj",None)
+        CRproj = __main__.__dict__.get("CRproj",None)
+
         
-        if self.apply_output_fns:
-            for of in self.output_fns:
-                of(self.activity)
-    
-        self.send_output(src_port='Activity',data=self.activity)
+        if ( (constant_mean_total_lgn_output is not None) or (LC is not None) ) and ("LGN" in self.name) and ("_" not in self.name):
+
+            DONETHISTIME = __main__.__dict__['DONETHISTIME']
+            ALLDONE = __main__.__dict__['ALLDONE']
+            DONETHISTIME[self.name] = self.activity
+
+            if set(DONETHISTIME.keys())==set(ALLDONE):
+
+                for act in DONETHISTIME.values():
+                    act[act<0.0]=0.0
+
+                crsht = __main__.__dict__['crsht']
+                lsht = __main__.__dict__['lsht']
+
+                if THRESH is not None:
+                    for csht in crsht:
+                        MUH = DONETHISTIME[csht]
+                        t = THRESH.get(csht,0.0)
+                        MUH[MUH<t]=0.0
+
+                for nam,act in DONETHISTIME.items():
+                    if topo.sim[nam].apply_output_fns:
+                        for of in topo.sim[nam].output_fns:
+                            of(act)
+
+                ################################################
+                ### constant_mean_total_lgn_output
+                # i.e. make mean response of all sheets equal constant_mean_total_lgn_output
+                mns = []
+                if constant_mean_total_lgn_output is not None:
+                    for sht in crsht+lsht:
+                        mns.append(DONETHISTIME[sht].mean())
+
+                    mn = numpy.mean(mns)
+                    constant_mean_total_lgn_output = __main__.__dict__['constant_mean_total_lgn_output']
+
+                    # CEBALERT: only normalize if there's enough activity :$
+                    if mn>0.00001:
+                        p = constant_mean_total_lgn_output/mn                
+
+                        # hack cos I did this for 2L 12C proj first...
+                        nproj = len(Lproj+CRproj)
+                        badfact = 14.0/nproj
+                        p*=badfact
+
+                        nsum=0.0
+                        for nam in crsht+lsht:
+                            DONETHISTIME[nam]*=p
+                            nsum+=DONETHISTIME[nam].sum()
+
+                ### end constant_mean_total_lgn_output
+                ################################################
+
+
+                ################################################
+                ### LC
+                if LC is not None:
+                    LC_L = __main__.__dict__["LC_L"]
+                    LC_C = __main__.__dict__["LC_C"]
+
+                    if i_am_learning:
+                        lprosumA = __main__.__dict__["lprosumA"]
+                        cprosumA = __main__.__dict__["cprosumA"]
+
+                        lallhack = 0.0
+                        LP = {}
+                        for nam in Lproj:
+                            val = topo.sim["V1"].projections(nam).allcfweightssumhack
+                            LP[nam] = val
+                            lallhack += val
+
+                        if lallhack>0:
+                            lfA= lprosumA/lallhack
+
+                            for nam in Lproj:
+                                val = LP[nam]*lfA
+                                topo.sim["V1"].projections(nam).allcfweightssumhack = val
+
+                        callhack = 0.0
+                        CP = {}
+                        for nam in CRproj:
+                            val = topo.sim["V1"].projections(nam).allcfweightssumhack
+                            CP[nam] = val
+                            callhack += val
+
+                        if callhack>0:
+                            cfA= cprosumA/callhack
+
+                            for nam in CRproj:
+                                val = CP[nam]*cfA
+                                topo.sim["V1"].projections(nam).allcfweightssumhack = val
+                ### LC
+                ################################################
+
+                        
+                for nam,act in DONETHISTIME.items():
+                    topo.sim[nam].activity[:]=act
+                    #clip_upper(topo.sim[nam].activity,1.0)
+                    topo.sim[nam].send_output(src_port="Activity",data=topo.sim[nam].activity)
+
+                DONETHISTIME.clear()
+
+        else:
+            if self.apply_output_fns:
+                for of in self.output_fns:
+                    of(self.activity)        
+
+            self.send_output(src_port='Activity',data=self.activity)
     
 
     def process_current_time(self):
