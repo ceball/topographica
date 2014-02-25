@@ -960,6 +960,11 @@ def print_sizes():
 PatternDrivenAnalysis.pre_presentation_hooks.append(wipe_out_activity)
 PatternDrivenAnalysis.pre_presentation_hooks.append(clear_event_queue)
 
+try:
+    from chrislib.commandbasichacked import *
+    print "Replaced topo.command.basic's run_batch- and snapshot-related stuff."
+except ImportError:
+    pass
             
 # maybe an explicit list would be better?
 import types
