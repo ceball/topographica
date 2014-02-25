@@ -1,15 +1,13 @@
 import numpy
 import param
 
+import topo
 from topo.base.arrayutil import clip_upper,wrap
 from topo.sheet.basic import GeneratorSheet
 from topo.pattern.image import FileImage,ImageSampler,PatternSampler
 from topo.misc.commandline import global_params as GP
 from topo import numbergen
 from topo import pattern
-
-import colorhacks.colorspaces
-import colorhacks.global_stuff
 
 
 def npyopen1(filename):
@@ -364,11 +362,11 @@ class ChannsFromImage(BaseColorImage):
 
     def injection(self,p,gray):
 
-        im2pg = colorhacks.global_stuff.cconv.image2receptors
-        pg2analysis = colorhacks.global_stuff.cconv.receptors2analysis
-        analysis2pg = colorhacks.global_stuff.cconv.analysis2receptors
-        jitterfn = colorhacks.global_stuff.cconv.jitter_hue
-        satfn = colorhacks.global_stuff.cconv.adjust_sat
+        im2pg = topo.sim.cconv.image2receptors
+        pg2analysis = topo.sim.cconv.receptors2analysis
+        analysis2pg = topo.sim.cconv.analysis2receptors
+        jitterfn = topo.sim.cconv.jitter_hue
+        satfn = topo.sim.cconv.adjust_sat
         
         ####
         

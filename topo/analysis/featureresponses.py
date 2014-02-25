@@ -38,7 +38,6 @@ from topo.pattern.basic import SineGrating, Gaussian, RawRectangle, Disk
 from topo.plotting.plotgroup import plotgroups
 from topo.sheet import GeneratorSheet
 
-import colorhacks.global_stuff
 
 # CB: having a class called DistributionMatrix with an attribute
 # distribution_matrix to hold the distribution matrix seems silly.
@@ -722,7 +721,7 @@ class PatternPresenter(param.Parameterized):
                     setattr(inputs[name],'orientation',orientation)
             ##########################
 
-        hue_to_rgb = colorhacks.global_stuff.cconv.analysis2receptors
+        hue_to_rgb = topo.sim.cconv.analysis2receptors
         
         if features_values.has_key('hue'):            
 

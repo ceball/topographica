@@ -32,7 +32,8 @@ import numpy
 import param
 from param import resolve_path
 
-from colorhacks.global_stuff import cconv
+# CEBALERT: to get topo.sim.colorconv
+import topo
 
 # CEBALERT: can we just use load_default()? Do we even need TITLE_FONT
 # at all?
@@ -224,7 +225,7 @@ class HSVBitmap(Bitmap):
         cs = sat.clip(0.0,1.0)
         cv = val.clip(0.0,1.0)
     
-        RGB = cconv.analysis2display(numpy.dstack( (ch,cs,cv) ))
+        RGB = topo.sim.cconv.analysis2display(numpy.dstack( (ch,cs,cv) ))
         
         rImage = self._arrayToImage(RGB[:,:,0])
         gImage = self._arrayToImage(RGB[:,:,1])
