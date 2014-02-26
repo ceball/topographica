@@ -241,7 +241,7 @@ LC_C = 0.5*(1-p.LC)
 
 dataset_subsets = {
     "Barca" : {
-        "natural": ("natural01",),#"natural02","natural03","natural04"),
+        "natural": ("natural01","natural02","natural03","natural04"),
         "urban"  : ("urban",)
         }
     }
