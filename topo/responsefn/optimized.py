@@ -171,3 +171,9 @@ class CFPRF_EuclideanDistance_opt(CFPResponseFn):
                local_dict=locals())
 
 provide_unoptimized_equivalent("CFPRF_EuclideanDistance_opt","CFPRF_EuclideanDistance",locals())
+
+try:
+    from chrislib.responsefnopthack import *
+    print "Replaced topo.responsefn.optimized with openmp hacked version."
+except ImportError:
+    pass
