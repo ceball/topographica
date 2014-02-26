@@ -213,7 +213,7 @@ class HSVBitmap(Bitmap):
     constructed by RGBBitmap, and can be used in the same way.
     """
 
-    def __init__(self,hue,sat,val,hue_hack=None):
+    def __init__(self,hue,sat,val):
         """Each matrix must be the same size, with values in the range 0.0 to 1.0."""
 
         # Note: should someday file a feature request for PIL for them
