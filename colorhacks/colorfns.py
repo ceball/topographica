@@ -1,7 +1,10 @@
 from math import pi
+import copy
 import colorsys
 
 import numpy
+
+from topo.base.arrayutil import wrap
 
 from topo.misc.inlinec import inline
 
@@ -278,7 +281,6 @@ def lab_to_xyz(LAB,wp):
     xr, yr, zr = finv(fx), finv(fy), finv(fz)
     return numpy.dstack((xr*wp[0],yr*wp[1],zr*wp[2]))
 
-# CEBALERT: need to deal with LAB and LCH scales!! (maybe only LCH?)
 
 def lch_to_lab(LCH):
     L,C,H = numpy.dsplit(LCH,3)
@@ -288,3 +290,8 @@ def lab_to_lch(LAB):
     L,A,B = numpy.dsplit(LAB,3)
     return numpy.dstack( (L, numpy.hypot(A,B), wrap(0,2*pi,numpy.arctan2(B,A))) )
 
+def xyz_to_lch(XYZ,whitepoint):
+    return lab_to_lch(xyz_to_lab(XYZ,whitepoint))
+
+def lch_to_xyz(LCH,whitepoint):
+    return lab_to_xyz(lch_to_lab(LCH),whitepoint)
