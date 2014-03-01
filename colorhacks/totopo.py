@@ -119,7 +119,6 @@ class ExtendToRGB(pattern.PatternGenerator):
     def __call__(self,**params):
         p = param.ParamOverrides(self,params)
 
-
         ########
         # as for Selector etc, hack pass through certain parameters to
         # generator
@@ -147,11 +146,9 @@ class ExtendToRGB(pattern.PatternGenerator):
             generator = p.generator
         #######################
 
-
         # CEBALERT: used to support non color patterns, too.        
         # (promoted red, green, blue from actual generator if it had
         # them, otherwise set to something based on gray)
-
 
         self.hack_hook0(generator)
 
@@ -166,16 +163,6 @@ class ExtendToRGB(pattern.PatternGenerator):
                 corr_to,
                 corr_amt*getattr(self,corr_from)+(1-corr_amt)*getattr(self,corr_to))
 
-        if GP.e2rgb_divide_channels_by_max_of_channels:
-            maxes = self.red.max(),self.green.max(),self.blue.max()
-            mx = max(maxes)
-
-            if mx>0:
-                self.red/=mx
-                self.green/=mx
-                self.blue/=mx                
-                # (i don't care about gray)
-                gray/=gray.max()
 
         self.hack_hook1()
         
@@ -248,6 +235,13 @@ class ColorImageSheet(GeneratorSheet):
                 self.output_fns[0](self.activity_red)
                 self.output_fns[1](self.activity_green)
                 self.output_fns[2](self.activity_blue)
+            elif len(self.output_fns)==6: 
+                self.output_fns[0](self.activity_red)
+                self.output_fns[1](self.activity_green)
+                self.output_fns[2](self.activity_blue)
+                self.output_fns[3](self.activity_red)
+                self.output_fns[4](self.activity_green)
+                self.output_fns[5](self.activity_blue)
             else:
                 raise
 
@@ -382,6 +376,6 @@ class ChannsFromImage(BaseColorImage):
         jitterfn(analysis_space,self.random_generator())
         satfn(analysis_space,self.sat)
         
-        channs_out = analysis2pg(analysis_space)        
+        channs_out = analysis2pg(analysis_space)
         self.red,self.green,self.blue = dsplit_3D_to_2Ds(channs_out)
         

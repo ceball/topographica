@@ -134,7 +134,6 @@ p.add(
     correlate_what = param.List(default=["green","red"]),
 
 
-
     # random seeds (need cleanup)
     rh_seed = param.Number(default=1048921),
     porderseed = param.Number(default=2042),
@@ -144,11 +143,8 @@ p.add(
     # analysis
     mrc_or_duration = param.Number(default=0.175),
 
-
-    ###############################################################
-    # CEBALERT: remove
-    e2rgb_divide_channels_by_max_of_channels = param.Boolean(default=True),
-    ###############################################################
+    gamma_corr_hack = param.Boolean(default=True),
+    sat_hack = param.Number(default=0.3,allow_None=True),
 
     hack_use_chrislib = param.Boolean(default=False)
 )
@@ -156,7 +152,6 @@ p.add(
 
 import colorhacks.colorspaces
 import colorhacks.totopo
-
 
 ##############################
 # CB: 
@@ -169,6 +164,13 @@ if p.hack_use_chrislib:
 
 ########################################################
 # misc checks, setting one param based on another, etc
+# Leads to confusion and bugs.
+
+if p.analysis_colorspace != 'HSV':
+    print 'gamma_corr_hack, sat_hack only apply to HSV analysis space - disabling'
+    p.gamma_corr_hack = False
+    p.sat_hack = None
+
     
 if p.BYOPP is True: 
     assert (p.rgcsym==0)
@@ -197,8 +199,16 @@ elif p.receptor_responses == 'spLMS':
 else:
     raise
 
+
+if p.gamma_corr_hack:
+    # (see note by the class about how this does hue rotation in gamma
+    # corrected rgb space)
+    cconv_type = colorhacks.colorspaces.hackyHSVRGBTopoColorConverter
+else:
+    cconv_type = colorhack.colorspaces.TopoColorConverter
+
 # CEBALERT: hack place to store global color converter
-topo.sim.cconv = colorhacks.colorspaces.TopoColorConverter(
+topo.sim.cconv = cconv_type(
     colorspace = colorspace,
     analysis_space = p.analysis_colorspace,
     image_space = p.dataset_colorspace,
@@ -329,7 +339,7 @@ if p.dataset in natural_image_sets:
     for f,i in zip(image_filenames,range(len(image_filenames))):
 
         inp=input_type(
-            sat = 0.3,
+            sat = p.sat_hack or 1.0,
             filename=f, size=10.0, cache_image=False,
             x=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+6*i),
             y=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+2+6*i),
@@ -736,6 +746,9 @@ lgn_boosts = {}
 if hasattr(p,'boostYELLOW3'):
     chrislib.more_global_stuff.do_lgn_boosts(lgn_boosts)
 
+if hasattr(p,'retinaOF') and p.retinaOF!='none':
+    chrislib.more_global_stuff.set_retina_of(p.retinaOF)
+
 if p.hack_use_chrislib:    
     if p.record_retina_histograms:
         chrislib.recording.record_retina_histograms1(prelgnthing,cone_types)
@@ -837,3 +850,4 @@ if p.LGN and p.V1:
 
     topo.sim['V1'].row_precedence=0.9    
 ###########################################################################
+
