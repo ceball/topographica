@@ -1,3 +1,5 @@
+from math import pi
+
 import numpy
 import scipy.linalg
 
@@ -5,7 +7,7 @@ import param
 
 from colorhacks.colorfns import threeDdot, \
      hsv_to_rgb, rgb_to_hsv, \
-     xyz_to_lab, lab_to_xyz, lab_to_lch, lch_to_lab
+     lch_to_xyz, xyz_to_lch
 
 # started from 
 # http://projects.scipy.org/scipy/browser/trunk/Lib/sandbox/image/color.py?rev=1698
@@ -65,6 +67,30 @@ splmsD65['xyz_from_lms'] = scipy.linalg.inv(splmsD65['lms_from_xyz'])
 ################################################################
 
 
+
+### Make LCH like other spaces (0,1)
+
+Lmax = 100.0
+Cmax = 360.0 # ? CEBALERT: A,B typically -127 to 128 (wikipedia...), so 360 or so max for C?
+Hmax = 2*pi
+
+def xyz_to_lch01(XYZ, whitepoint):
+    L,C,H = numpy.dsplit(xyz_to_lch(XYZ,whitepoint),3)
+    L/=Lmax
+    C/=Cmax
+    H/=Hmax
+    return numpy.dstack((L,C,H))
+    
+def lch01_to_xyz(LCH, whitepoint):
+    L,C,H = numpy.dsplit(LCH,3)
+    L*=Lmax
+    C*=Cmax
+    H*=Hmax
+    return lch_to_xyz(numpy.dstack((L,C,H)),whitepoint)
+
+###
+
+
 # This started off general but ended up being useful only
 # for the specific transforms I wanted to do.
 class ColorSpace(param.Parameterized):
@@ -77,9 +103,12 @@ class ColorSpace(param.Parameterized):
     output_limits = param.NumericTuple((0.0,1.0))
 
     output_clip = param.ObjectSelector(default='silent',
-                                       objects=['silent','warn','error'])
+                                       objects=['silent','warn','error','none'])
 
     dtype = param.Parameter(default=numpy.float32)
+
+    def _triwp(self):
+        return whitepoints[self.whitepoint][3]
 
     def _get_shape(self,a):        
         if hasattr(a,'shape') and a.ndim>0: # i.e. really an array, I hope
@@ -103,16 +132,19 @@ class ColorSpace(param.Parameterized):
         in_shape = self._get_shape(a)
         a = numpy.array(a,copy=False,ndmin=3,dtype=self.dtype)
         if a.min()<min_ or a.max()>max_:
-            raise ValueError('out of limits')
+            raise ValueError('Input out of limits')
         return a, in_shape
         
     def _clip(self,a,min_limit,max_limit,action='silent'):
+        if action=='none':
+            return
+        
         if action=='error':
             if a.min()<min_limit or a.max()>max_limit:
-                raise ValueError
+                raise ValueError('(%s,%s) outside limits (%s,%s)'%(a.min(),a.max(),min_limit,max_limit))
         elif action=='warn':
-            if a.min()<min_limit or a.max()>max_limit:
-                self.warning('outside limits')
+            if a.min()<min_limit or a.max()>max_limit:                
+                self.warning('(%s,%s) outside limits (%s,%s)'%(a.min(),a.max(),min_limit,max_limit))
 
         a.clip(min_limit,max_limit,out=a)
                     
@@ -124,9 +156,9 @@ class ColorSpace(param.Parameterized):
         self._put_shape(b,in_shape)
         return b
 
-    def _ABC_to_DEF_by_fn(self,ABC,fn):
+    def _ABC_to_DEF_by_fn(self,ABC,fn,*fnargs):
         ABC, in_shape = self._prepare_input(ABC,*self.input_limits)
-        DEF = fn(ABC)
+        DEF = fn(ABC,*fnargs)
         self._clip(DEF,*self.output_limits,action=self.output_clip)
         self._put_shape(DEF, in_shape)
         return DEF
@@ -151,10 +183,10 @@ class ColorSpace(param.Parameterized):
             self.transforms[self.whitepoint]['xyz_from_rgb'], RGB)
 
     def xyz_to_lch(self, XYZ):
-        return xyz_to_lch(XYZ,self.whitepoint)
+        return self._ABC_to_DEF_by_fn(XYZ,xyz_to_lch01,self._triwp())
 
     def lch_to_xyz(self,LCH):
-        return lch_to_xyz(LCH,self.whitepoint)
+        return self._ABC_to_DEF_by_fn(LCH,lch01_to_xyz,self._triwp())
 
     def lch_to_rgb(self,LCH):
         return self.xyz_to_rgb(self.lch_to_xyz(LCH))
@@ -170,6 +202,8 @@ class ColorSpace(param.Parameterized):
     def lch_to_lms(self,LCH):
         return self.xyz_to_lms(self.lch_to_xyz(LCH))
 
+# CEBALERT: probably change gammacorr to gamma compression and
+# ungamacorr to gamma expansion, and then use those names consistently
 
 class sRGB(ColorSpace):
 
@@ -190,7 +224,7 @@ class sRGB(ColorSpace):
         return self.rgb_to_xyz(self._ungamma(RGB))
 
     def lch_to_gammargb(self,LCH):
-        return self._gamma(self.lch_to_rrgb(LCH))
+        return self._gamma(self.lch_to_rgb(LCH))
 
     # For HSV, whether you transform from gamma corrected RGB or
     # linear RGB is not defined as far as I know.    
@@ -205,6 +239,16 @@ class sRGB(ColorSpace):
 class spLMS(ColorSpace):
 
     transforms = param.Dict(default=transforms['splms'])
+
+
+def _swaplch(LCH):
+    # brain not working
+    try:
+        L,C,H = numpy.dsplit(LCH)
+        return numpy.dstack((H,C,L))
+    except:
+        L,C,H = LCH
+        return H,C,L
 
 
 class TopoColorConverter(param.Parameterized):
@@ -231,7 +275,7 @@ class TopoColorConverter(param.Parameterized):
 
     swap_polar_HSVorder = {
         'HSV': lambda HSV: HSV,
-        'LCH': lambda LCH: numpy.dstack( (LCH[:,:,2],LCH[:,:,1],LCH[:,:,0]) )}
+        'LCH': _swaplch }
     
 
     def _convert(self,from_,to,what):
@@ -251,7 +295,7 @@ class TopoColorConverter(param.Parameterized):
 
     def analysis2display(self,a):
         a = self.swap_polar_HSVorder[self.analysis_space](a)
-        fn = getattr(self.display_space,'%s_to_%s'%(self.analysis_space.lower(),'gammargb')) # pretty hacky
+        fn = getattr(self.display_space,'%s_to_%s'%(self.analysis_space.lower(),'gammargb'))
         return fn(a)
 
     # jitter, sat manips happen in analysis space
@@ -264,4 +308,20 @@ class TopoColorConverter(param.Parameterized):
     def adjust_sat(self,a,factor):
         a = self.swap_polar_HSVorder[self.analysis_space](a)
         a[:,:,1] *= factor
-        
+
+
+# Hack is that RGB responses are gamma corrected before being
+# converted to analysis (HSV) space, and gamma is reverted before
+# returning RGB from analysis space. Because I think HSV is designed
+# to work with gamma corrected RGB values. Note: without this, the HSV
+# hue rotation seems to be less effective.
+class hackyHSVRGBTopoColorConverter(TopoColorConverter):
+
+    colorspace = param.Parameter(default=sRGB())
+
+    def analysis2receptors(self,a):
+        return self.colorspace._ungamma(super(hackyHSVRGBTopoColorConverter,self).analysis2receptors(a))
+
+    def receptors2analysis(self,r):
+        return super(hackyHSVRGBTopoColorConverter,self).receptors2analysis(self.colorspace._gamma(r))
+
