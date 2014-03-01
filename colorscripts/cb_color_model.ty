@@ -205,7 +205,7 @@ if p.gamma_corr_hack:
     # corrected rgb space)
     cconv_type = colorhacks.colorspaces.hackyHSVRGBTopoColorConverter
 else:
-    cconv_type = colorhack.colorspaces.TopoColorConverter
+    cconv_type = colorhacks.colorspaces.TopoColorConverter
 
 # CEBALERT: hack place to store global color converter
 topo.sim.cconv = cconv_type(
