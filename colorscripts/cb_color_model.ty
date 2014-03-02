@@ -48,7 +48,8 @@ CEBALERT: below are **untested** with the current code (work in
 
 - Like original LISSOM CR model (no adaptive homeostasis, RGC PL OF,
   no output norm for retina or RGC):
-    ./topographica -p A=False -p rgc_upper_limit=1.0 -p constant_mean_total_retina_output=None -p constant_mean_total_lgn_output=None -p LC=None colorscripts/cb_color_model.ty -g
+  (CB: why not LC=None?)
+    ./topographica -p A=False -p rgc_upper_limit=1.0 -p constant_mean_total_retina_output=None -p constant_mean_total_lgn_output=None -p LC=0.8 colorscripts/cb_color_model.ty -g
 
 - Smith-Pokorny LMS receptor responses:
     ./topographica -p receptor_responses='spLMS' colorscripts/cb_color_model.ty -g
