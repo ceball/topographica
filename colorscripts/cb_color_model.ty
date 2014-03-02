@@ -1,4 +1,67 @@
 """
+To run cb color model:
+
+  ./topographica colorscripts/cb_color_model.ty -g
+
+
+By default:
+
+- reads Barcelona natural images in XYZ format (see p.dataset,
+  p.dataset_subset, p.dataset_colorspace)
+
+- uses sRGB receptor responses (see p.receptor_responses)
+
+- performs analysis in HSV space (see p.analysis_colorspace)
+
+- jitters hue in HSV space (see p.hjitter)
+
+- has 'symmetric' RGC/LGN pathway (see p.rgcsym)
+
+- has a particular balance of CR:LUM in LGN pathway (see p.LC)
+
+- has V1 with adaptive homeostasis (see p.A)
+
+
+Other possibly interesting simulations:
+
+- No adaptive homeostasis (gives strong separation of CR blobs from OR
+  selective regions):
+    ./topographica -p A=False colorscripts/cb_color_model.ty -g
+    
+- No RGC color pathway (and still doesn't give a particularly good OR
+  map):
+    ./topographica -p LC=1.0 colorscripts/cb_color_model.ty -g
+
+- Non-symmetric ('biologically realistic') RGC/LGN pathway:
+    ./topographica -p rgcsym=0 colorscripts/cb_color_model.ty -g
+
+- As above (non-symmetric RGC/LGN pathway) but with spatially opponent
+  (rather than coextensive) 'blue/yellow' pathway:
+    ./topographica -p rgcsym=0 -p BYOPP=True colorscripts/cb_color_model.ty -g
+
+
+
+----------------------------------------------------------------------
+CEBALERT: below are **untested** with the current code (work in
+    progress)
+----------------------------------------------------------------------
+
+- Smith-Pokorny LMS receptor responses:
+    ./topographica -p receptor_responses='spLMS' colorscripts/cb_color_model.ty -g
+
+- 'Best effort' biologically realistic simulation via dimensions:
+    (CB: needs more than just red channel boosting)
+    ./topographica -p red_channel_boost3=1.25 -p correlation=0.6 -p rgcsym=0 -p BYOPP=True -p hjitter=0.0 -p temp_norm_rgb_pixel=True -p temp_norm_lgn_pixel=True colorscripts/cb_color_model.ty -g
+
+- 'Best effort' biologically realistic simulation with realistic
+  receptor responses (rather than artificial correlation and boost):
+    ./topographica -p receptor_responses='spLMS' -p rgcsym=0 -p BYOPP=True -p hjitter=0.0 -p temp_norm_rgb_pixel=True -p temp_norm_lgn_pixel=True colorscripts/cb_color_model.ty -g
+
+- As above, but perform analysis in perceptually uniform LCH space
+  rather than HSV space:  
+    ./topographica -p analysis_colorspace='LCH' -p receptor_responses='spLMS' -p rgcsym=0 -p BYOPP=True -p hjitter=0.0 -p temp_norm_rgb_pixel=True -p temp_norm_lgn_pixel=True colorscripts/cb_color_model.ty -g
+
+    
 
 $Id: lissom3.ty 900 2012-11-19 15:46:43Z s0454615 $
 """
