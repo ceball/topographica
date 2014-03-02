@@ -193,7 +193,7 @@ p.add(
     # normalization
     constant_mean_total_retina_output = param.Number(default=0.44,allow_None=True),
     constant_mean_total_lgn_output = param.Number(default=0.1,doc="Desired (spatial) mean activity of one LGN unit (not mean over time!).",allow_None=True),
-    LC = param.Number(default=-0.2,bounds=(-1.0,1.0),allow_None=True),
+    LC = param.Number(default=0.0,bounds=(-1.0,1.0),allow_None=True),
     #######################################
 
 
