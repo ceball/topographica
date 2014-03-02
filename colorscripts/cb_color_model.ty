@@ -27,7 +27,7 @@ Other possibly interesting simulations:
 - No adaptive homeostasis (gives strong separation of CR blobs from OR
   selective regions):
     ./topographica -p A=False colorscripts/cb_color_model.ty -g
-    
+
 - No RGC color pathway (and still doesn't give a particularly good OR
   map):
     ./topographica -p LC=1.0 colorscripts/cb_color_model.ty -g
@@ -45,6 +45,10 @@ Other possibly interesting simulations:
 CEBALERT: below are **untested** with the current code (work in
     progress)
 ----------------------------------------------------------------------
+
+- Like original LISSOM CR model (no adaptive homeostasis, RGC PL OF,
+  no output norm for retina or RGC):
+    ./topographica -p A=False -p rgc_upper_limit=1.0 -p constant_mean_total_retina_output=None -p constant_mean_total_lgn_output=None -p LC=None colorscripts/cb_color_model.ty -g
 
 - Smith-Pokorny LMS receptor responses:
     ./topographica -p receptor_responses='spLMS' colorscripts/cb_color_model.ty -g
@@ -188,7 +192,7 @@ p.add(
     # normalization
     constant_mean_total_retina_output = param.Number(default=0.44,allow_None=True),
     constant_mean_total_lgn_output = param.Number(default=0.1,doc="Desired (spatial) mean activity of one LGN unit (not mean over time!).",allow_None=True),
-    LC = param.Number(default=-0.2,bounds=(-1.0,1.0)),
+    LC = param.Number(default=-0.2,bounds=(-1.0,1.0),allow_None=True),
     #######################################
 
 
@@ -297,8 +301,9 @@ else:
 #####
 # CEBALERT
 LC = p.LC # don't delete - hack in projection.py reads it
-LC_L = 0.5*(1+p.LC)
-LC_C = 0.5*(1-p.LC)
+if p.LC is not None:
+    LC_L = 0.5*(1+p.LC)
+    LC_C = 0.5*(1-p.LC)
 #####
 
 
@@ -853,15 +858,16 @@ if p.V1:
     topo.sim.run(0.0)
     S = float(topo.sim["V1"].activity.size)
 
-    # hack variables for weight balancing
-    lprosumA = LC_L*S
-    cprosumA = LC_C*S
+    if p.LC is not None:
+        # hack variables for weight balancing
+        lprosumA = LC_L*S
+        cprosumA = LC_C*S
 
-    for nam in Lproj:
-        topo.sim['V1'].projections(nam).learning_rate=0.1*LC_L
+        for nam in Lproj:
+            topo.sim['V1'].projections(nam).learning_rate=0.1*LC_L
 
-    for nam in CRproj:
-        topo.sim['V1'].projections(nam).learning_rate=0.1*LC_C
+        for nam in CRproj:
+            topo.sim['V1'].projections(nam).learning_rate=0.1*LC_C
         
 ######################################        
 
