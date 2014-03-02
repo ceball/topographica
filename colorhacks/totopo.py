@@ -360,7 +360,7 @@ class ChannsFromImage(BaseColorImage):
         pg2analysis = topo.sim.cconv.receptors2analysis
         analysis2pg = topo.sim.cconv.analysis2receptors
         jitterfn = topo.sim.cconv.jitter_hue
-        satfn = topo.sim.cconv.adjust_sat
+        satfn = topo.sim.cconv.multiply_sat
         
         ####
         
@@ -371,8 +371,6 @@ class ChannsFromImage(BaseColorImage):
         if self._hack_recording is not None:            
             self._hack_recording(self,channs=channs_in,extra=analysis_space)            
 
-        # HSV is normally computed from gamma-corrected RGB
-        # (but I don't know any explicit specification about it)
         jitterfn(analysis_space,self.random_generator())
         satfn(analysis_space,self.sat)
         

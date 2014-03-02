@@ -167,12 +167,6 @@ class ColorSpace(param.Parameterized):
     # allow rgb_to_hsv(RGB,output_clip='error') ) but never got round
     # to it.
     # CEBALERT: could cut down boilerplate by generating.
-
-    def rgb_to_hsv(self,RGB):
-        return self._ABC_to_DEF_by_fn(RGB,rgb_to_hsv)
-
-    def hsv_to_rgb(self,HSV):
-        return self._ABC_to_DEF_by_fn(HSV,hsv_to_rgb)
         
     def xyz_to_rgb(self,XYZ):
         return self._threeDdot(
@@ -194,13 +188,22 @@ class ColorSpace(param.Parameterized):
     def xyz_to_lms(self,XYZ):
         return self._threeDdot(
             self.transforms[self.whitepoint]['lms_from_xyz'], XYZ)
-
+    
     def lms_to_xyz(self,LMS):
         return self._threeDdot(
             self.transforms[self.whitepoint]['xyz_from_lms'], LMS)
 
     def lch_to_lms(self,LCH):
         return self.xyz_to_lms(self.lch_to_xyz(LCH))
+
+    def lms_to_lch(self,LMS):
+        return self.xyz_to_lch(self.lms_to_xyz(LMS))
+
+    def rgb_to_lch(self,RGB):        
+        return self.xyz_to_lch(self.rgb_to_xyz(RGB))
+
+    def lch_to_rgb(self,LCH):
+        return self.xyz_to_rgb(self.lch_to_xyz(LCH))
 
 # CEBALERT: probably change gammacorr to gamma compression and
 # ungamacorr to gamma expansion, and then use those names consistently
@@ -217,22 +220,24 @@ class sRGB(ColorSpace):
     def _ungamma(RGB):
         return RGB/12.92*(RGB<=0.04045) + (((RGB+0.055)/1.055)**2.4) * (RGB>0.04045)
 
-    def xyz_to_gammargb(self,XYZ):
-        return self._gamma(self.xyz_to_rgb(XYZ))
-    
-    def gammargb_to_xyz(self,RGB):
-        return self.rgb_to_xyz(self._ungamma(RGB))
+    # linear rgb to hsv
+    def rgb_to_hsv(self,RGB):
+        gammaRGB = self._gamma(RGB)
+        return self._ABC_to_DEF_by_fn(gammaRGB,rgb_to_hsv)
+
+    # hsv to linear rgb
+    def hsv_to_rgb(self,HSV):
+        gammaRGB = self._ABC_to_DEF_by_fn(HSV,hsv_to_rgb)
+        return self._ungamma(gammaRGB)
+
+    ### for display
+
+    def hsv_to_gammargb(self,HSV):
+        # hsv is already specifying gamma corrected rgb
+        return self._ABC_to_DEF_by_fn(HSV,hsv_to_rgb)
 
     def lch_to_gammargb(self,LCH):
         return self._gamma(self.lch_to_rgb(LCH))
-
-    # For HSV, whether you transform from gamma corrected RGB or
-    # linear RGB is not defined as far as I know.    
-    def gammargb_to_hsv(self,RGB):
-        return self.rgb_to_hsv(RGB)
-
-    def hsv_to_gammargb(self,HSV):
-        return self.hsv_to_rgb(HSV)
 
 
 
@@ -240,11 +245,23 @@ class spLMS(ColorSpace):
 
     transforms = param.Dict(default=transforms['splms'])
 
+    hack_rgb_space = sRGB() # used for rgb/lms conversions
+
+    # could use and store rgb/lms matrix instead
+    def hsv_to_lms(self,HSV):
+        return self.xyz_to_lms(self.hack_rgb_space.rgb_to_xyz(self.hack_rgb_space.hsv_to_rgb(HSV)))
+    
+    def lms_to_hsv(self,LMS):
+        return self.hack_rgb_space.rgb_to_hsv(self.hack_rgb_space.xyz_to_rgb(self.lms_to_xyz(LMS)))
+
+    def lms_to_lch(self,LCH):
+        lch_to_xyz
+
 
 def _swaplch(LCH):
     # brain not working
     try:
-        L,C,H = numpy.dsplit(LCH)
+        L,C,H = numpy.dsplit(LCH,3)
         return numpy.dstack((H,C,L))
     except:
         L,C,H = LCH
@@ -266,7 +283,7 @@ class TopoColorConverter(param.Parameterized):
 
     image_space = param.ObjectSelector(
         default='XYZ', 
-        objects=['XYZ']) # XYZ's all I've considered for now
+        objects=['XYZ']) # CEBALERT: need to add LMS and possibly sRGB
 
     # CEBALERT: should be classselector
     display_space = param.Parameter(default=sRGB())
@@ -298,30 +315,11 @@ class TopoColorConverter(param.Parameterized):
         fn = getattr(self.display_space,'%s_to_%s'%(self.analysis_space.lower(),'gammargb'))
         return fn(a)
 
-    # jitter, sat manips happen in analysis space
     
     def jitter_hue(self,a,amount):
-        a = self.swap_polar_HSVorder[self.analysis_space](a)
         a[:,:,0] += amount
         a[:,:,0] %= 1.0
 
-    def adjust_sat(self,a,factor):
-        a = self.swap_polar_HSVorder[self.analysis_space](a)
+    def multiply_sat(self,a,factor):
         a[:,:,1] *= factor
-
-
-# Hack is that RGB responses are gamma corrected before being
-# converted to analysis (HSV) space, and gamma is reverted before
-# returning RGB from analysis space. Because I think HSV is designed
-# to work with gamma corrected RGB values. Note: without this, the HSV
-# hue rotation seems to be less effective.
-class hackyHSVRGBTopoColorConverter(TopoColorConverter):
-
-    colorspace = param.Parameter(default=sRGB())
-
-    def analysis2receptors(self,a):
-        return self.colorspace._ungamma(super(hackyHSVRGBTopoColorConverter,self).analysis2receptors(a))
-
-    def receptors2analysis(self,r):
-        return super(hackyHSVRGBTopoColorConverter,self).receptors2analysis(self.colorspace._gamma(r))
 

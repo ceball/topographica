@@ -143,9 +143,8 @@ p.add(
     # analysis
     mrc_or_duration = param.Number(default=0.175),
 
-    gamma_corr_hack = param.Boolean(default=True),
-    sat_hack = param.Number(default=0.3,allow_None=True),
 
+    sat_hack = param.Number(default=0.3,allow_None=True),
     hack_use_chrislib = param.Boolean(default=False)
 )
 
@@ -165,12 +164,6 @@ if p.hack_use_chrislib:
 ########################################################
 # misc checks, setting one param based on another, etc
 # Leads to confusion and bugs.
-
-if p.analysis_colorspace != 'HSV':
-    print 'gamma_corr_hack, sat_hack only apply to HSV analysis space - disabling'
-    p.gamma_corr_hack = False
-    p.sat_hack = None
-
     
 if p.BYOPP is True: 
     assert (p.rgcsym==0)
@@ -199,16 +192,8 @@ elif p.receptor_responses == 'spLMS':
 else:
     raise
 
-
-if p.gamma_corr_hack:
-    # (see note by the class about how this does hue rotation in gamma
-    # corrected rgb space)
-    cconv_type = colorhacks.colorspaces.hackyHSVRGBTopoColorConverter
-else:
-    cconv_type = colorhacks.colorspaces.TopoColorConverter
-
 # CEBALERT: hack place to store global color converter
-topo.sim.cconv = cconv_type(
+topo.sim.cconv = colorhacks.colorspaces.TopoColorConverter(
     colorspace = colorspace,
     analysis_space = p.analysis_colorspace,
     image_space = p.dataset_colorspace,
