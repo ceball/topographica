@@ -212,8 +212,9 @@ p.add(
     # analysis
     mrc_or_duration = param.Number(default=0.175),
 
-
+    # CEBALERT: remove or explain the point
     sat_hack = param.Number(default=0.3,allow_None=True),
+
     hack_use_chrislib = param.Boolean(default=False)
 )
 
