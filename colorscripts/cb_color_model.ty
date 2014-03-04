@@ -26,25 +26,21 @@ Other possibly interesting simulations:
 
 - No adaptive homeostasis gives strong separation of CR blobs from OR
   selective regions? E.g. compare these two:
-    ./topographica -p rgcsym=0 colorscripts/cb_color_model.ty -g
-    ./topographica -p rgcsym=0 -p A=False colorscripts/cb_color_model.ty -g
+    ./topographica -p rgcsym=0 -p constant_mean_total_lgn_output=0.1 colorscripts/cb_color_model.ty -g
+    ./topographica -p rgcsym=0 -p constant_mean_total_lgn_output=0.1 A=False colorscripts/cb_color_model.ty -g
+  CEBALERT: A=False sim seems to need constant_mean_total_lgn_output
+  to be 0.1. To be like original lissom model, should probably just
+  set all these normalizations to None.
 
-- No RGC color pathway (and still doesn't give a particularly good OR
+- No RGC color pathways (and still doesn't give a particularly good OR
   map):
     ./topographica -p LC=1.0 colorscripts/cb_color_model.ty -g
-
-- Non-symmetric ('biologically realistic') RGC/LGN pathway:
-    ./topographica -p rgcsym=0 colorscripts/cb_color_model.ty -g
-
-- As above (non-symmetric RGC/LGN pathway) but with spatially opponent
-  (rather than coextensive) 'blue/yellow' pathway:
-    ./topographica -p rgcsym=0 -p BYOPP=True colorscripts/cb_color_model.ty -g
-
 
 
 ----------------------------------------------------------------------
 CEBALERT: below are **untested** with the current code (work in
-    progress)
+    progress - in particular, missing my code to calculate
+    temp_norm factors)
 ----------------------------------------------------------------------
 
 - Like original LISSOM CR model (no adaptive homeostasis, RGC PL OF,
@@ -54,6 +50,13 @@ CEBALERT: below are **untested** with the current code (work in
 
 - Smith-Pokorny LMS receptor responses:
     ./topographica -p receptor_responses='spLMS' colorscripts/cb_color_model.ty -g
+
+- Non-symmetric ('biologically realistic') RGC/LGN pathway:
+    ./topographica -p rgcsym=0 colorscripts/cb_color_model.ty -g
+
+- As above (non-symmetric RGC/LGN pathway) but with spatially opponent
+  (rather than coextensive) 'blue/yellow' pathway:
+    ./topographica -p rgcsym=0 -p BYOPP=True colorscripts/cb_color_model.ty -g
 
 - 'Best effort' biologically realistic simulation via dimensions:
     (CB: needs more than just red channel boosting)
@@ -192,6 +195,7 @@ p.add(
 
     #######################################
     # normalization
+    # CEBALERT: rename these!
     constant_mean_total_retina_output = param.Number(default=0.44,allow_None=True),
     constant_mean_total_lgn_output = param.Number(default=0.05,allow_None=True),
     LC = param.Number(default=0.2,bounds=(-1.0,1.0),allow_None=True),
