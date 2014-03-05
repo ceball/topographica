@@ -211,6 +211,53 @@ class polarplot(PylabPlotCommand):
         self._generate_figure(p)
 
 
+
+##### colored wedges hack
+
+# I have no idea what's going on in here, but it draws
+# colored weges around the outside of my polar plots...
+        
+from matplotlib.patches import Wedge
+        
+def circkey(edges=None):
+
+    huefn = topo.sim.cconv.analysis2display
+    huefn_sat = topo.sim.cconv.display_sat
+    huefn_val = topo.sim.cconv.display_val
+
+    ax = pylab.gca()
+
+    if edges is None:
+        nbin = 20
+        step = 360.0/nbin
+        edges = numpy.arange(0,360+step,step)
+    
+    wedges = []
+
+    for i in range(len(edges)-1):
+        w = Wedge((0.5001,0.5001), 0.50, edges[i], edges[i+1], width=0.05,alpha=0.75)
+        H = edges[i]/360.0
+        w.set_transform(ax.transAxes)
+        w.set_color(huefn( (H,huefn_sat,huefn_val)) ) 
+        wedges.append(w)
+        ax.add_patch(w)
+
+    pylab.draw()
+
+
+# I wanted to use a PatchCollection, but couldn't get it to work.
+#collection = PatchCollection(wedges, cmap=matplotlib.cm.hsv, alpha=1.0)
+#colors = np.arange(0,len(edges))
+#collection.set_array(colors)
+#ax.add_collection(collection)
+
+#w = Wedge((0.5,0.5), 0.3, 0.0, 360.0,width=0.1)
+#w.set_transform(ax.transAxes)
+#ax.add_patch(w)
+
+##### colored wedges hack
+
+
 class matrixplot(PylabPlotCommand):
     """
     Simple plotting for any matrix as a bitmap with axes.
