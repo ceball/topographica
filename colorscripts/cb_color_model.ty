@@ -841,7 +841,7 @@ if p.LGN and p.V1 and len(lgn_boosts)>0:
 
 #########################################
 if p.LGN:
-    lsht = ["Luminosity LGNOn", "Luminosity LGNOff"]
+    lsht = ["Luminosity LGNOn", "Luminosity LGNOff"] if p.lumpath else []
     crsht = []
 
     for nam,obj in topo.sim.objects().items():
