@@ -70,6 +70,9 @@ CEBALERT: below are **untested** with the current code (work in
   rather than HSV space:  
     ./topographica -p analysis_colorspace='LCH' -p receptor_responses='spLMS' -p rgcsym=0 -p BYOPP=True -p hjitter=0.0 -p temp_norm_rgb_pixel=True -p temp_norm_lgn_pixel=True colorscripts/cb_color_model.ty -g
 
+
+with sat 0.3
+nice ./topographica -g -p hack_use_chrislib=True -p cortex_density=24 -p retina_density=24 -p lgn_density=24 -p record_retina_histograms=False -p record_pg_histograms=False -p record_pg_out_histograms=False -p LC=0.0 -p record_lgn_acts=False colorscripts/cb_color_model.ty
     
 
 $Id: lissom3.ty 900 2012-11-19 15:46:43Z s0454615 $
