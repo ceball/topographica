@@ -510,7 +510,8 @@ def process_argv(argv):
                 ['-noconfirm_exit','-nobanner',
                  '-pi1',CommandPrompt.get_format(),
                  '-pi2',CommandPrompt2.get_format(),
-                 '-po',OutputPrompt.get_format()],
+                 '-po',OutputPrompt.get_format(),
+                 '-pdb'],
                 user_ns=__main__.__dict__).mainloop(sys_exit=1)            
 
         
