@@ -215,7 +215,21 @@ disabling all color coding for Strength/Hue/Confidence plots.""")
         plot = self._right_click_info['plot']
         description = "%s %s at time %s" % (plot.plot_src_name, plot.name, topo.sim.timestr())
         m=plot._get_matrix(channel)
-        topo.command.pylabplot.histogramplot(m,title="Histogram: "+ description)
+
+        title = "Histogram: "+description
+
+        if plot.view_dict[plot.channels[channel]].cyclic: # seriously?
+            import string
+#            if 'hue' in string.lower(plot.name):
+#                import chrislib.cbmisc
+#                chrislib.cbmisc.save_v1_hue_hist(fatack=False)
+#            else:
+            topo.command.pylabplot.polarhistogramplot(m,title=title)
+        else:
+            topo.command.pylabplot.histogramplot(m,title=title)
+
+
+
 
     def __gradient(self,channel):
         plot = self._right_click_info['plot']
