@@ -257,6 +257,24 @@ def circkey(edges=None):
 
 ##### colored wedges hack
 
+import __main__
+class polarhistogramplot(PylabPlotCommand):
+
+    # JABALERT: All but the first two arguments should probably be Parameters
+    def __call__(self,data,range=(0.0,1.0),nbins=20,weights=None,**params):
+        p=ParamOverrides(self,params,allow_extra_keywords=True)        
+
+        nbins = __main__.__dict__.get("PLOTBINS") or nbins
+
+        counts,bins = numpy.histogram(data,range=range,bins=nbins,weights=weights)
+        bins = bins[0:-1]
+        pylab.figure()    
+        polarplot(2*pi*bins,counts,labels=bins)
+
+        self._generate_figure(p)
+
+
+
 
 class matrixplot(PylabPlotCommand):
     """
