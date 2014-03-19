@@ -122,7 +122,7 @@ p.add(
         inclusive_bounds=(False,True),doc="""
         The nominal_density to use for the retina."""),
 
-    lgn_density=param.Number(default=48.0,bounds=(0,None),
+    lgn_density=param.Number(default=24.0,bounds=(0,None),
         inclusive_bounds=(False,True),doc="""
         The nominal_density to use for the LGN."""),
 
@@ -833,6 +833,31 @@ if p.hack_use_chrislib:
 
     if p.record_lgn_acts:
         chrislib.recording.record_lgn_acts1(lgn_boosts)
+
+
+    if p.collect_data!="":
+        chrislib.recording.collect_rgb(p.collect_data_time,cone_types,prelgnthing)
+
+    if p.read_data!="":
+        print "Reading %s"%p.read_data
+        rgbresu = chrislib.recording.read_data(p.read_data,p.detailed_collect_data,p.collect_data_time)
+
+    if p.collect_data_lgn!="":
+        chrislib.recording.collect_lgn(p.collect_data_time)
+
+    if p.read_data_lgn!="":    
+        print "Reading %s"%p.read_data_lgn
+        lgnresu = chrislib.recording.read_lgn(p.read_data_lgn,p.detailed_collect_data,p.collect_data_time)
+
+    if p.temp_norm_lgn_pixel:
+        print 'temp norm lgn pixel'
+        chrislib.recording.temp_norm_lgn_pixel(p.detailed_collect_data,lgnresu)
+
+    if p.temp_norm_rgb_pixel:
+        print 'temp norm rgb pixel'
+        chrislib.recording.temp_norm_rgb_pixel(rgbresu,prelgnthing)
+
+        
 ###########
 
 
