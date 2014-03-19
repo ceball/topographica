@@ -294,9 +294,9 @@ class GenericImage(PatternGenerator):
         result = p.pattern_sampler(self._get_image(p),p.pattern_x,p.pattern_y,float(p.xdensity),float(p.ydensity),
                                    float(width),float(height))
 
-        if p.cache_image is False:
-            self._image = None
-            del self.pattern_sampler.image 
+        #if p.cache_image is False:
+        self._image = None
+        del self.pattern_sampler.image 
 
         return result
 
