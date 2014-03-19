@@ -259,6 +259,10 @@ if not p.A:
     # tsettle for A, so maybe just delete tsettle parameter.
     print "not AL model: tsettle, A_aff_strength, A_exc_strength, A_inh_strength, A_aff_lr, A_exc_lr, A_inh_lr will be ignored"
 
+if p.receptor_responses != 'sRGB':
+    print 'sat hack only valid (ha) for RGB - disabling'
+    p.sat_hack = None
+
 ########################################################
 
 
