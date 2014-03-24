@@ -254,8 +254,6 @@ class spLMS(ColorSpace):
     def lms_to_hsv(self,LMS):
         return self.hack_rgb_space.rgb_to_hsv(self.hack_rgb_space.xyz_to_rgb(self.lms_to_xyz(LMS)))
 
-    def lms_to_lch(self,LCH):
-        lch_to_xyz
 
 
 def _swaplch(LCH):
@@ -283,7 +281,7 @@ class TopoColorConverter(param.Parameterized):
 
     image_space = param.ObjectSelector(
         default='XYZ', 
-        objects=['XYZ']) # CEBALERT: need to add LMS and possibly sRGB
+        objects=['XYZ','RGB']) # CEBALERT: need to add LMS and possibly sRGB
 
     # CEBALERT: should be classselector
     display_space = param.Parameter(default=sRGB())
@@ -296,8 +294,13 @@ class TopoColorConverter(param.Parameterized):
     
 
     def _convert(self,from_,to,what):
-        fn = getattr(self.colorspace,'%s_to_%s'%(from_.lower(),to.lower())) # pretty hacky
-        return fn(what)
+        from_ = from_.lower()
+        to = to.lower()
+        if from_==to:
+            return what
+        else:
+            fn = getattr(self.colorspace,'%s_to_%s'%(from_,to)) # pretty hacky
+            return fn(what)
 
     def analysis2receptors(self,a):
         a = self.swap_polar_HSVorder[self.analysis_space](a)        
