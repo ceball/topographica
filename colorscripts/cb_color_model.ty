@@ -82,6 +82,9 @@ __version__='$Revision: 900 $'
 # CEBALERT: the network constructing code, umm, follows the
 # history of my experimentation. It should be re-written.
 
+
+# ./topographica -g -p size_hack=1 -p constant_mean_total_lgn_output=0.1 -p 'dataset="McGill"' -p 'dataset_subset="special"' -p 'dataset_colorspace="RGB"' -p 'dataset_format="mat"' -p hack_use_chrislib=True -c images_already_divbymax=False -c bloat_me=True -p cortex_density=24 -p retina_density=24 -p lgn_density=24 -p hjitter=0.0 colorscripts/cb_color_model.ty
+
 import glob
 from math import pi
 
@@ -155,11 +158,11 @@ p.add(
 
     #######################################
     # input data, color spaces, receptor types
-    dataset=param.ObjectSelector(default='Barca',objects=['Barca']),    
+    dataset=param.ObjectSelector(default='Barca',objects=['Barca','McGill']),    
     
     dataset_subset = param.Parameter(default='natural'),
 
-    dataset_colorspace = param.String(default="XYZ"),
+    dataset_colorspace = param.String(default="RGB"),
 
     receptor_responses = param.ObjectSelector(
         default = "sRGB",
@@ -167,7 +170,7 @@ p.add(
 
     dataset_format = param.ObjectSelector(
         default="npy",
-        objects=["npy","tiff"]),
+        objects=["npy","tiff","mat"]),
 
     analysis_colorspace = param.ObjectSelector(
         default="HSV",
@@ -222,7 +225,11 @@ p.add(
     # CEBALERT: remove or explain the point
     sat_hack = param.Number(default=0.3,allow_None=True),
 
-    hack_use_chrislib = param.Boolean(default=False)
+    hack_use_chrislib = param.Boolean(default=False),
+
+    # tmp
+    size_hack = param.Number(default=0)
+    
 )
 
 
@@ -278,6 +285,10 @@ elif p.receptor_responses == 'spLMS':
 else:
     raise
 
+if p.dataset_colorspace == 'sRGB':
+    # CEBALERT: I already forgot why I did this
+    p.dataset_colorspace = 'RGB'
+
 # CEBALERT: hack place to store global color converter
 topo.sim.cconv = colorhacks.colorspaces.TopoColorConverter(
     colorspace = colorspace,
@@ -297,7 +308,7 @@ projection.CFProjection.learning_fn=learningfn.optimized.CFPLF_Hebbian_opt()
 projection.CFProjection.weights_output_fns=[transferfn.optimized.CFPOF_DivisiveNormalizeL1_opt()]
 projection.SharedWeightCFProjection.response_fn=responsefn.optimized.CFPRF_DotProduct_opt()
 
-natural_image_sets = ['Barca']
+natural_image_sets = ['Barca','McGill']
 
 if p.dataset in natural_image_sets:
 
@@ -325,15 +336,25 @@ dataset_subsets = {
     "Barca" : {
         "natural": ("natural01","natural02","natural03","natural04"),
         "urban"  : ("urban",)
+        },
+
+    "McGill": {
+        "special": ('special',)
         }
     }
 
 dataset_colorspaces = {
-    "Barca" : {
-        "XYZ" : "CIE1931_XYZ_Munsell",
-        "SP_LMS" : "SP_LMS_Munsell"
+        "Barca" : {
+            "XYZ" : "CIE1931_XYZ_Munsell",
+            "SP_LMS" : "SP_LMS_Munsell"
+            },
+        "McGill": {
+            "RGB" : "rgblinear"
+            }
+        
         }
-    }
+
+
 
 
 relative_channel_strengths = [1.,1.,1.]
@@ -393,16 +414,24 @@ DAATASETS = resolve_folder('DATASETS')
 
 if p.dataset in natural_image_sets:
 
-    assert p.dataset=="Barca" # CEBALERT: haven't re-done the others yet
-    
     files = []
 
-    for subset in dataset_subsets[p.dataset][p.dataset_subset]:
-        ## these are camera rgb->xyz using munsell reflectances;
-        ## apparently, NE reflectances are available in there
-        ## somewhere too so could do that mapping.
-        loc = DAATASETS+"/cvc/"+subset+"/"+dataset_colorspaces[p.dataset][p.dataset_colorspace]+"/" 
-        files+=glob.glob(loc+"*.%s"%p.dataset_format)
+    if p.dataset=='Barca':
+
+        for subset in dataset_subsets[p.dataset][p.dataset_subset]:
+            ## these are camera rgb->xyz using munsell reflectances;
+            ## apparently, NE reflectances are available in there
+            ## somewhere too so could do that mapping.
+            loc = DAATASETS+"/cvc/"+subset+"/"+dataset_colorspaces[p.dataset][p.dataset_colorspace]+"/" 
+            files+=glob.glob(loc+"*.%s"%p.dataset_format)
+
+    # CEBALERT: same code as above; need to clean up cvc vs barca
+    elif p.dataset=='McGill':
+        for subset in dataset_subsets[p.dataset][p.dataset_subset]:
+            loc = DAATASETS+"/mcgill/"+subset+"/"+dataset_colorspaces[p.dataset][p.dataset_colorspace]+"/"
+            files+=glob.glob(loc+"*.%s"%p.dataset_format)
+                                                                                
+            
 
     image_filenames = sorted(files)
 
@@ -410,16 +439,28 @@ if p.dataset in natural_image_sets:
     firstone = True
     for f,i in zip(image_filenames,range(len(image_filenames))):
 
+        input_size_stuff = {}
+        if p.size_hack==0:
+            input_stuff = dict(
+                size=10.0,
+                x=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+6*i),
+                y=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+2+6*i),
+                orientation=numbergen.UniformRandom(lbound=-pi,ubound=pi,seed=p.input_seed+3+6*i))
+        elif p.size_hack==1:
+            input_stuff = dict(
+                size = 2*(0.5+v1aff_radius+lgnaff_radius))
+        else:
+            raise
+ 
         inp=input_type(
             sat = p.sat_hack or 1.0,
-            filename=f, size=10.0, cache_image=False,
-            x=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+6*i),
-            y=numbergen.UniformRandom(lbound=-0.75,ubound=0.75,seed=p.input_seed+2+6*i),
-            orientation=numbergen.UniformRandom(lbound=-pi,ubound=pi,seed=p.input_seed+3+6*i),
+            filename=f,
+            cache_image=False,
             scale=1.0,
             random_generator=numbergen.UniformRandom(lbound=-p.hjitter/2.0,
                                                      ubound=p.hjitter/2.0,
-                                                     seed=p.input_seed+5+6*i))
+                                                     seed=p.input_seed+5+6*i),
+            **input_stuff)
 
         # CEBALERT
         if firstone:
