@@ -289,6 +289,11 @@ if p.dataset_colorspace == 'sRGB':
     # CEBALERT: I already forgot why I did this
     p.dataset_colorspace = 'RGB'
 
+    # CEBALERT: part of hack to get linear mcg images from matlab
+    if p.dataset == 'McGill':
+        chrislib.rgbimages.BADTHING=='LIN'
+    
+
 # CEBALERT: hack place to store global color converter
 topo.sim.cconv = colorhacks.colorspaces.TopoColorConverter(
     colorspace = colorspace,
