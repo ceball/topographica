@@ -162,7 +162,7 @@ p.add(
     
     dataset_subset = param.Parameter(default='natural'),
 
-    dataset_colorspace = param.String(default="RGB"),
+    dataset_colorspace = param.String(default="XYZ"),
 
     receptor_responses = param.ObjectSelector(
         default = "sRGB",
