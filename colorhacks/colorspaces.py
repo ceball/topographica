@@ -58,7 +58,9 @@ transforms['splms']['D65'] = splmsD65 = {}
 # CEBALERT: reckon this matrix is wrong - just pasted as placeholder
 # (need to get from my code)
 
-# Guth (1980) - SP; L, M, and S normalized to one)
+# barca use SP norm'd to?
+
+# Guth (1980) - SP; L, M, and S normalized to one)  peak norm'd?
 splmsD65['lms_from_xyz'] = numpy.array([[0.2435, 0.8524, -0.0516],
                                         [-0.3954, 1.1642, 0.0837],
                                         [0, 0, 0.6225]])
