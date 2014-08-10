@@ -50,6 +50,13 @@ srgbD65['xyz_from_rgb'] = scipy.linalg.inv(srgbD65['rgb_from_xyz'])
 ################################################################
 
 
+#transforms['rgb_pippin'] = {}
+
+
+
+#transforms['rgb_merry'] = {}
+
+
 ################################################################
 # spLMS
 transforms['splms'] = {}
@@ -58,12 +65,52 @@ transforms['splms']['D65'] = splmsD65 = {}
 # CEBALERT: reckon this matrix is wrong - just pasted as placeholder
 # (need to get from my code)
 
+# W&S p615 2e
+# 0.15514 0.54312 -0.03286
+#-0.15514 0.45684  0.03286 
+#     0       0    0.00801
+
+# SP CRAP96 
+# 0.15516 0.54307 -0.03287
+# -0.15516 0.45692 0.03287
+# 0         0      k
+
+# Anya: last entry is instead 0.01602
+
 # barca use SP norm'd to?
 
+# Vector model for normal and dichromatic color vision
+# j opt soc am v70 n2 1980 
 # Guth (1980) - SP; L, M, and S normalized to one)  peak norm'd?
 splmsD65['lms_from_xyz'] = numpy.array([[0.2435, 0.8524, -0.0516],
                                         [-0.3954, 1.1642, 0.0837],
                                         [0, 0, 0.6225]])
+
+#splmsD65['lms_from_xyz'] = numpy.array([[0.2435, 0.8522, -0.0515],
+#                                        [-0.3955, 1.1642, 0.0838],
+#                                        [-0.0002, 0.0002, 0.6188]])
+
+#M_JuddVosToCones =
+#
+#    0.2435    0.8522   -0.0515
+#   -0.3955    1.1642    0.0838
+#   -0.0002    0.0002    0.6188
+   
+# from fairchild color appearance models
+# HPE illum D65
+#splmsD65['lms_from_xyz'] = numpy.array([[0.400,0.708,-0.081],
+#                                        [-0.226,1.165,0.046],
+#                                        [0.00,0.00,0.918]])
+
+#splmsD65['lms_from_xyz'] = numpy.array([[0.15514, 0.54312, -0.03286],
+#                                        [-0.15514, 0.45684,  0.03286],
+#                                        [0,       0,    0.00801]])
+
+#splmsD65['lms_from_xyz'] = numpy.array([[0.15516, 0.54307, -0.03287],
+#                                        [-0.15516, 0.45692, 0.03287],
+#                                        [ 0,         0,      1.0]])
+
+
 
 splmsD65['xyz_from_lms'] = scipy.linalg.inv(splmsD65['lms_from_xyz'])
 ################################################################
@@ -283,7 +330,7 @@ class TopoColorConverter(param.Parameterized):
 
     image_space = param.ObjectSelector(
         default='XYZ', 
-        objects=['XYZ','RGB']) # CEBALERT: need to add LMS and possibly sRGB
+        objects=['XYZ','RGB','LMS']) # CEBALERT: need to add LMS and possibly sRGB
 
     # CEBALERT: should be classselector
     display_space = param.Parameter(default=sRGB())
