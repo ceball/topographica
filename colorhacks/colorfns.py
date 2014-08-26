@@ -8,7 +8,8 @@ from topo.base.arrayutil import wrap
 
 from topo.misc.inlinec import inline
 
-
+# NOTE: I just found a file with cython versions of many of these
+# functions. I must have made it then forgotten all about it.
 # CEBALERT: rename these
 
 ## return Ma where M is 3x3 transformation matrix, for each pixel
@@ -45,7 +46,7 @@ def _threeDdot_faster(M,a):
 threeDdot = _threeDdot_faster
 
 def _abc_to_def_array(ABC,fn):
-    shape = ABC[:,:,0].shape
+    shape = ABC.shape
     dtype = ABC.dtype
     
     DEF = numpy.zeros(shape,dtype=dtype)
@@ -223,6 +224,11 @@ for (int i=0; i<Nhue[0]; ++i) {
                     g = p;
                     b = q;
                     break;
+                case 6:    // same as case 0
+                    r = v;
+                    g = t;
+                    b = p;
+                    break;                    
             }
         }
         RED2(i,j)=r;
