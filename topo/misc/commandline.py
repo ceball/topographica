@@ -19,8 +19,14 @@ from param.parameterized import Parameterized,OptionalSingleton
 
 try:
     # By default, use a non-GUI backend for matplotlib.
-    from matplotlib import rcParams
+    from matplotlib import rcParams,rc
     rcParams['backend']='Agg'
+    font = {
+        'family':'normal',
+        'weight':'bold',
+        'size':18}
+    rc('font',**font)
+        
     matplotlib_imported=True
 except ImportError:
     matplotlib_imported=False
