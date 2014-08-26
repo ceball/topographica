@@ -158,7 +158,7 @@ p.add(
 
     #######################################
     # input data, color spaces, receptor types
-    dataset=param.ObjectSelector(default='Barca',objects=['Barca','McGill']),    
+    dataset=param.ObjectSelector(default='Barca',objects=['Barca','McGill','RandomChanns']),    
     
     dataset_subset = param.Parameter(default='natural'),
 
@@ -285,13 +285,20 @@ elif p.receptor_responses == 'spLMS':
 else:
     raise
 
+print p.dataset_colorspace,p.dataset
 if p.dataset_colorspace == 'sRGB':
     # CEBALERT: I already forgot why I did this
     p.dataset_colorspace = 'RGB'
 
     # CEBALERT: part of hack to get linear mcg images from matlab
     if p.dataset == 'McGill':
-        chrislib.rgbimages.BADTHING=='LIN'
+        BADTHING=='LIN'
+elif p.dataset_colorspace == 'LMS':
+    # CEBALERT: part of hack to get linear mcg images from matlab
+    if p.dataset == 'McGill':
+        print 'here'
+        BADTHING='LMS'
+
     
 
 # CEBALERT: hack place to store global color converter
@@ -325,7 +332,11 @@ if p.dataset in natural_image_sets:
     ids=4.0
 
 else:
-    raise
+    # CEBALERT! this for random only
+    input_type = chrislib.rgbimages.RandomChanns
+    ids = 4.0 
+
+
 
 
 #####
@@ -344,23 +355,32 @@ dataset_subsets = {
         },
 
     "McGill": {
-        "special": ('special',)
+        "special": ('special',),
+        'depaula2007':('depaula2007',)
         }
     }
 
 dataset_colorspaces = {
-        "Barca" : {
-            "XYZ" : "CIE1931_XYZ_Munsell",
-            "SP_LMS" : "SP_LMS_Munsell"
-            },
-        "McGill": {
-            "RGB" : "rgblinear"
-            }
-        
+    "Barca" : {
+        "XYZ" : "CIE1931_XYZ_Munsell",
+        "SP_LMS" : "SP_LMS_Munsell"
+        },
+    "McGill": {
+        "RGB" : "rgblinear",
+        "LMS" : "lms"
         }
+    
+    }
 
 
-
+###
+#_r = 1.#0.75#1.0 #0.85
+#_g = 1.042#0.8#0.85 #1.0
+#_b = 1.295#0.9#0.5
+#_x = 3.0/(_r+_g+_b)
+#relative_channel_strengths = [_r*_x,_g*_x,_b*_x]
+#print relative_channel_strengths
+###
 
 relative_channel_strengths = [1.,1.,1.]
 ### YMBK ###
@@ -486,7 +506,10 @@ if p.dataset in natural_image_sets:
         correlate = [p.correlate_what[0],p.correlate_what[1],p.correlation] if p.correlation else None)
 
 else:
-    raise
+    input_color = colorhacks.totopo.ColorImageSheet.hacky_e2rgb_class(
+        generator = input_type(),
+        channel_factors = relative_channel_strengths,
+        correlate = [p.correlate_what[0],p.correlate_what[1],p.correlation] if p.correlation else None)
 
 
 topo.sim['Retina'] = colorhacks.totopo.ColorImageSheet(
@@ -581,7 +604,7 @@ surroundgL = pattern.Gaussian(size=0.29540,aspect_ratio=1.0,
 if p.dataset in natural_image_sets:
     strength=4.7
 else:
-    raise
+    strength=4.7 #2.33 for gaussian
 
 num_aff=len(center_polarities)*len(opponent_types)
 
