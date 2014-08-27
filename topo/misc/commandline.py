@@ -23,8 +23,8 @@ try:
     rcParams['backend']='Agg'
     font = {
         'family':'normal',
-        'weight':'bold',
-        'size':18}
+#        'weight':'bold',
+        'size':36}
     rc('font',**font)
         
     matplotlib_imported=True
