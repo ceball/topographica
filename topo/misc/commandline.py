@@ -22,7 +22,7 @@ try:
     from matplotlib import rcParams,rc
     rcParams['backend']='Agg'
     font = {
-        'family':'normal',
+#        'family':'normal',
 #        'weight':'bold',
         'size':36}
     rc('font',**font)
