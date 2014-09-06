@@ -200,7 +200,7 @@ class polarplot(PylabPlotCommand):
         theta_values = numpy.asarray(theta_values)
         r_values = numpy.asarray(r_values)
                                      
-        pylab.polar(theta_values,r_values,'-+')
+        pylab.polar(theta_values,r_values,'-+',linewidth=4)
 
         if labels is not None:
             # get grid lines at the theta_values specified with labels (rather than angles)
