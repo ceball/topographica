@@ -468,6 +468,337 @@ class measure_cog(ParameterizedFunction):
         return {'XCoG': xcog_stack, 'YCoG': ycog_stack, 'CoG': contour_stack}
 
 
+
+from topo.plotting.plotgroup import create_plotgroup, save_plotgroup
+from topo.command import pylabplot
+from imagen.random import UniformRandom
+from featuremapper import distribution
+
+
+pg = create_plotgroup(name='Activity', category='Basic',
+                      doc='Plot the activity for all Sheets.',
+                      auto_refresh=True, pre_plot_hooks=[update_activity],
+                      plot_immediately=True)
+pg.add_plot('Activity', [('Strength', '_activity_buffer')])
+
+
+pg = create_plotgroup(name='Connection Fields', category="Basic",
+                     doc='Plot the weight strength in each ConnectionField of a specific unit of a Sheet.',
+                     pre_plot_hooks=[update_connectionfields],
+                     plot_immediately=True, normalize='Individually', situate=True)
+pg.add_plot('Connection Fields', [('Strength', 'Weights')])
+
+
+pg = create_plotgroup(name='Projection', category="Basic",
+           doc='Plot the weights of an array of ConnectionFields in a Projection.',
+           pre_plot_hooks=[update_projection],
+           plot_immediately=False, normalize='Individually', sheet_coords=True)
+pg.add_plot('Projection', [('Strength', 'Weights')])
+
+
+pg = create_plotgroup(name='RGB', category='Other',
+             doc='Combine and plot the red, green, and blue activity for all appropriate Sheets.',
+             auto_refresh=True, pre_plot_hooks=[update_rgb_activities],
+             plot_immediately=True)
+pg.add_plot('RGB', [('Red', 'RedActivity'), ('Green', 'GreenActivity'),
+                    ('Blue', 'BlueActivity')])
+
+
+pg = create_plotgroup(name='Projection Activity', category="Basic",
+                      doc='Plot the activity in each Projection that connects '
+                          'to a Sheet.',
+                      pre_plot_hooks=[update_projectionactivity.instance()],
+                      plot_immediately=True, normalize='Individually',
+                      auto_refresh=True)
+pg.add_plot('Projection Activity', [('Strength', 'ProjectionActivity')])
+
+
+pg= create_plotgroup(name='Center of Gravity',category="Preference Maps",
+             doc='Measure the center of gravity of each ConnectionField in a Projection.',
+             pre_plot_hooks=[measure_cog.instance()],
+             plot_hooks=[pylabplot.topographic_grid.instance(xsheet_view_name="XCoG",ysheet_view_name="YCoG")],
+             normalize='Individually')
+pg.add_plot('X CoG',[('Strength','XCoG')])
+pg.add_plot('Y CoG',[('Strength','YCoG')])
+pg.add_plot('CoG',[('Red','XCoG'),('Green','YCoG')])
+
+
+pg = create_plotgroup(name='RF Projection', category='Other',
+                      doc='Measure white noise receptive fields.',
+                      pre_plot_hooks=[measure_rfs.instance(
+                          pattern_generator=UniformRandom())],
+                      normalize='Individually')
+
+pg.add_plot('RFs', [('Strength', 'RFs')])
+
+
+pg = create_plotgroup(name='Orientation Preference', category="Preference Maps",
+                      doc='Measure preference for sine grating orientation.',
+                      pre_plot_hooks=[measure_sine_pref.instance(
+                          preference_fn=distribution.DSF_WeightedAverage())])
+pg.add_plot('Orientation Preference', [('Hue', 'OrientationPreference')])
+pg.add_plot('Orientation Preference&Selectivity',
+            [('Hue', 'OrientationPreference'),
+             ('Confidence', 'OrientationSelectivity')])
+pg.add_plot('Orientation Selectivity', [('Strength', 'OrientationSelectivity')])
+pg.add_plot('Phase Preference', [('Hue', 'PhasePreference')])
+pg.add_plot('Phase Selectivity', [('Strength', 'PhaseSelectivity')])
+pg.add_static_image('Color Key', 'static/or_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='vonMises Orientation Preference',
+                      category="Preference Maps",
+                      doc='Measure preference for sine grating orientation '
+                          'using von Mises fit.',
+                      pre_plot_hooks=[measure_sine_pref.instance(
+                          preference_fn=distribution.DSF_VonMisesFit(),
+                          num_orientation=16)])
+pg.add_plot('Orientation Preference', [('Hue', 'OrientationPreference')])
+pg.add_plot('Orientation Preference&Selectivity',
+            [('Hue', 'OrientationPreference'),
+             ('Confidence', 'OrientationSelectivity')])
+pg.add_plot('Orientation Selectivity', [('Strength', 'OrientationSelectivity')])
+pg.add_plot('Phase Preference', [('Hue', 'PhasePreference')])
+pg.add_plot('Phase Selectivity', [('Strength', 'PhaseSelectivity')])
+pg.add_static_image('Color Key', 'static/or_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Bimodal Orientation Preference',
+                      category="Preference Maps",
+                      doc='Measure preference for sine grating orientation '
+                          'using bimodal von Mises fit.',
+                      pre_plot_hooks=[measure_sine_pref.instance(
+                          preference_fn=distribution.DSF_BimodalVonMisesFit(),
+                          num_orientation=16)])
+pg.add_plot('Orientation Preference', [('Hue', 'OrientationPreference')])
+pg.add_plot('Orientation Preference&Selectivity',
+            [('Hue', 'OrientationPreference'),
+             ('Confidence', 'OrientationSelectivity')])
+pg.add_plot('Orientation Selectivity', [('Strength', 'OrientationSelectivity')])
+pg.add_plot('Second Orientation Preference',
+            [('Hue', 'OrientationMode2Preference')])
+pg.add_plot('Second Orientation Preference&Selectivity',
+            [('Hue', 'OrientationMode2Preference'),
+             ('Confidence', 'OrientationMode2Selectivity')])
+pg.add_plot('Second Orientation Selectivity',
+            [('Strength', 'OrientationMode2Selectivity')])
+pg.add_static_image('Color Key', 'static/or_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Two Orientation Preferences',
+                      category='Preference Maps',
+                      doc='Display the two most preferred orientations for '
+                          'each units, using bimodal von Mises fit.',
+                      pre_plot_hooks=[measure_sine_pref.instance(
+                          preference_fn=distribution.DSF_BimodalVonMisesFit(),
+                          num_orientation=16)])
+pg.add_plot('Two Orientation Preferences', [('Or1', 'OrientationPreference'),
+                                            ('Sel1', 'OrientationSelectivity'),
+                                            ('Or2', 'OrientationMode2Preference'),
+                                            ('Sel2', 'OrientationMode2Selectivity')])
+pg.add_static_image('Color Key', 'static/two_or_key_vert.png')
+
+
+pg = create_plotgroup(name='Spatial Frequency Preference',
+                      category="Preference Maps",
+                      doc='Measure preference for sine grating orientation '
+                          'and frequency.',
+                      pre_plot_hooks=[measure_sine_pref.instance(
+                          preference_fn=distribution.DSF_WeightedAverage())])
+pg.add_plot('Spatial Frequency Preference',
+            [('Strength', 'FrequencyPreference')])
+pg.add_plot('Spatial Frequency Selectivity',
+            [('Strength', 'FrequencySelectivity')])
+# Just calls measure_sine_pref to plot different maps.
+
+
+pg = create_plotgroup(name='Ocular Preference', category="Preference Maps",
+                      doc='Measure preference for sine gratings between two '
+                          'eyes.',
+                      pre_plot_hooks=[measure_od_pref.instance()])
+pg.add_plot('Ocular Preference', [('Strength', 'OcularPreference')])
+pg.add_plot('Ocular Selectivity', [('Strength', 'OcularSelectivity')])
+
+
+pg= create_plotgroup(name='PhaseDisparity Preference',category="Preference Maps",doc="""
+    Measure preference for sine gratings at a specific orentation differing in phase
+    between two input sheets.""",
+             pre_plot_hooks=[measure_phasedisparity.instance()],normalize='Individually')
+pg.add_plot('PhaseDisparity Preference', [('Hue', 'PhasedisparityPreference')])
+pg.add_plot('PhaseDisparity Preference&Selectivity',
+            [('Hue', 'PhasedisparityPreference'),
+             ('Confidence', 'PhasedisparitySelectivity')])
+pg.add_plot('PhaseDisparity Selectivity',
+            [('Strength', 'PhasedisparitySelectivity')])
+pg.add_static_image('Color Key', 'static/disp_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Direction Preference', category="Preference Maps",
+                      doc='Measure preference for sine grating movement '
+                          'direction.',
+                      pre_plot_hooks=[measure_dr_pref.instance()])
+pg.add_plot('Direction Preference', [('Hue', 'DirectionPreference')])
+pg.add_plot('Direction Preference&Selectivity', [('Hue', 'DirectionPreference'),
+                                                 ('Confidence',
+                                                  'DirectionSelectivity')])
+pg.add_plot('Direction Selectivity', [('Strength', 'DirectionSelectivity')])
+pg.add_plot('Speed Preference', [('Strength', 'SpeedPreference')])
+pg.add_plot('Speed Selectivity', [('Strength', 'SpeedSelectivity')])
+pg.add_static_image('Color Key', 'static/dr_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Hue Preference', category="Preference Maps",
+                      doc='Measure preference for colors.',
+                      pre_plot_hooks=[measure_hue_pref.instance()],
+                      normalize='Individually')
+pg.add_plot('Hue Preference', [('Hue', 'HuePreference')])
+pg.add_plot('Hue Preference&Selectivity',
+            [('Hue', 'HuePreference'), ('Confidence', 'HueSelectivity')])
+pg.add_plot('Hue Selectivity', [('Strength', 'HueSelectivity')])
+
+
+pg = create_plotgroup(name='Second Orientation Preference',
+                      category="Preference Maps",
+                      doc='Measure the second preference for sine grating '
+                          'orientation.',
+                      pre_plot_hooks=[
+                          measure_second_or_pref.instance(true_peak=False)])
+pg.add_plot('Second Orientation Preference',
+            [('Hue', 'OrientationMode2Preference')])
+pg.add_plot('Second Orientation Preference&Selectivity',
+            [('Hue', 'OrientationMode2Preference'),
+             ('Confidence', 'OrientationMode2Selectivity')])
+pg.add_plot('Second Orientation Selectivity',
+            [('Strength', 'OrientationMode2Selectivity')])
+pg.add_static_image('Color Key', 'static/or_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Second Peak Orientation Preference',
+                      category="Preference Maps",
+                      doc='Measure the second peak preference for sine '
+                          'grating orientation.',
+                      pre_plot_hooks=[
+                          measure_second_or_pref.instance(true_peak=True)])
+pg.add_plot('Second Peak Orientation Preference',
+            [('Hue', 'OrientationMode2Preference')])
+pg.add_plot('Second Peak Orientation Preference&Selectivity',
+            [('Hue', 'OrientationMode2Preference'),
+             ('Confidence', 'OrientationMode2Selectivity')])
+pg.add_plot('Second Peak Orientation Selectivity',
+            [('Strength', 'OrientationMode2Selectivity')])
+pg.add_static_image('Color Key', 'static/or_key_white_vert_small.png')
+
+
+pg = create_plotgroup(name='Two Peaks Orientation Preferences',
+                      category='Preference Maps',
+                      doc="""Display the two most preferred orientations for
+                      all units with a multimodal orientation preference
+                      distribution.""",
+                      pre_plot_hooks=[
+                          measure_second_or_pref.instance(num_orientation=16,
+                                                          true_peak=True)])
+pg.add_plot('Two Peaks Orientation Preferences',
+            [('Or1', 'OrientationPreference'),
+             ('Sel1', 'OrientationSelectivity'),
+             ('Or2', 'OrientationMode2Preference'),
+             ('Sel2', 'OrientationMode2Selectivity')])
+pg.add_static_image('Color Key', 'static/two_or_key_vert.png')
+
+
+pg = create_plotgroup(name='Corner OR Preference', category="Preference Maps",
+                      doc='Measure orientation preference for corner shape ('
+                          'or other complex stimuli that cannot be '
+                          'represented as fullfield patterns).',
+                      pre_plot_hooks=[measure_corner_or_pref.instance(
+                          preference_fn=distribution.DSF_WeightedAverage())],
+                      normalize='Individually')
+pg.add_plot('Corner Orientation Preference', [('Hue', 'OrientationPreference')])
+pg.add_plot('Corner Orientation Preference&Selectivity',
+            [('Hue', 'OrientationPreference'),
+             ('Confidence', 'OrientationSelectivity')])
+pg.add_plot('Corner Orientation Selectivity',
+            [('Strength', 'OrientationSelectivity')])
+
+
+pg = create_plotgroup(name='Corner Angle Preference',
+                      category="Preference Maps",
+                      doc='Measure preference for angles in corner shapes',
+                      normalize='Individually')
+pg.pre_plot_hooks = [measure_corner_angle_pref.instance()]
+pg.add_plot('Corner Angle Preference', [('Hue', 'AnglePreference')])
+pg.add_plot('Corner Angle Preference&Selectivity',
+            [('Hue', 'AnglePreference'), ('Confidence', 'AngleSelectivity')])
+pg.add_plot('Corner Angle Selectivity', [('Strength', 'AngleSelectivity')])
+pg.add_plot('Corner Orientation Preference', [('Hue', 'OrientationPreference')])
+pg.add_plot('Corner Orientation Preference&Selectivity',
+            [('Hue', 'OrientationPreference'),
+             ('Confidence', 'OrientationSelectivity')])
+pg.add_plot('Corner Orientation Selectivity',
+            [('Strength', 'OrientationSelectivity')])
+pg.add_static_image('Hue Code', 'static/key_angles.png')
+
+
+pg= create_plotgroup(name='Position Preference',category="Preference Maps",
+           doc='Measure preference for the X and Y position of a Gaussian.',
+           pre_plot_hooks=[measure_position_pref.instance(
+            preference_fn=distribution.DSF_WeightedAverage(selectivity_scale=(0.,17.) ))],
+           plot_hooks=[pylabplot.topographic_grid.instance()],
+           normalize='Individually')
+
+pg.add_plot('X Preference',[('Strength','XPreference')])
+pg.add_plot('Y Preference',[('Strength','YPreference')])
+pg.add_plot('Position Preference',[('Red','XPreference'),
+                                   ('Green','YPreference')])
+
+
+create_plotgroup(template_plot_type="curve",name='Orientation Tuning Fullfield',category="Tuning Curves",doc="""
+            Plot orientation tuning curves for a specific unit, measured using full-field sine gratings.
+            Although the data takes a long time to collect, once it is ready the plots
+            are available immediately for any unit.""",
+        pre_plot_hooks=[measure_or_tuning_fullfield.instance()],
+        plot_hooks=[pylabplot.cyclic_tuning_curve.instance(x_axis='orientation')])
+
+
+create_plotgroup(template_plot_type="curve",name='Orientation Tuning',category="Tuning Curves",doc="""
+            Measure orientation tuning for a specific unit at different contrasts,
+            using a pattern chosen to match the preferences of that unit.""",
+        pre_plot_hooks=[measure_or_tuning.instance()],
+        plot_hooks=[pylabplot.cyclic_tuning_curve.instance(x_axis="orientation")],
+        prerequisites=['XPreference'])
+
+
+create_plotgroup(template_plot_type="curve",name='Size Tuning',category="Tuning Curves",
+        doc='Measure the size preference for a specific unit.',
+        pre_plot_hooks=[measure_size_response.instance()],
+        plot_hooks=[pylabplot.tuning_curve.instance(x_axis='size')],
+        prerequisites=['OrientationPreference','XPreference'])
+
+
+create_plotgroup(template_plot_type="curve",name='Contrast Response',category="Tuning Curves",
+        doc='Measure the contrast response function for a specific unit.',
+        pre_plot_hooks=[measure_contrast_response.instance()],
+        plot_hooks=[pylabplot.tuning_curve.instance(x_axis="contrast")],
+        prerequisites=['OrientationPreference','XPreference'])
+
+
+create_plotgroup(template_plot_type="curve",name='Frequency Tuning',category="Tuning Curves",
+        doc='Measure the spatial frequency preference for a specific unit.',
+        pre_plot_hooks=[measure_frequency_response.instance()],
+                 plot_hooks=[pylabplot.tuning_curve.instance(x_axis="frequency")],
+        prerequisites=['OrientationPreference','XPreference'])
+
+
+create_plotgroup(template_plot_type="curve",name='Orientation Contrast',category="Tuning Curves",
+                 doc='Measure the response of one unit to a center and surround sine grating disk.',
+                 pre_plot_hooks=[measure_orientation_contrast.instance()],
+                 plot_hooks=[pylabplot.cyclic_tuning_curve.instance(x_axis="orientationsurround", center=False,
+                                                                    relative_labels=True)],
+                 prerequisites=['OrientationPreference','XPreference'])
+
+
+
+
+
 import types
 
 __all__ = list(set([k for k, v in locals().items()
